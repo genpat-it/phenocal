@@ -112,7 +112,7 @@ Cooper ~5.0×, He ~11.4× (anchor Ivanova), weighted residual RMSE ≈ 0.10 log1
 de Ruvo A†, Castelli P†, Di Pasquale A, Radomski N.
 *Genome-Anchored Probabilistic MIC Labels: Uncertainty-Aware Phenotype
 Construction for Cross-Cohort Machine Learning* (in preparation).
-† equal contribution (co-first authors).
+† equal contribution (co-first authors); either may list their name first on their CV.
 
 ## License
 
