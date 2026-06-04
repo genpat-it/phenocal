@@ -1,0 +1,10 @@
+sample	value	cohort
+s1_A	0.5	labA
+s1_B	1.0	labB
+s1_C	2.5	labC
+s2_A	1.0	labA
+s2_B	2.0	labB
+s2_C	5.0	labC
+s3_A	2.0	labA
+s3_B	4.0	labB
+s3_C	10.0	labC

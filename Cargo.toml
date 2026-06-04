@@ -1,0 +1,13 @@
+[package]
+name = "phenocal"
+version = "0.1.0"
+edition = "2021"
+description = "Genome-anchored calibration of a continuous phenotype across cohorts/batches, with uncertainty-propagated probabilistic labels."
+license = "MIT"
+
+# Zero external dependencies: self-contained, builds offline.
+[dependencies]
+
+[profile.release]
+opt-level = 3
+lto = true
