@@ -10,10 +10,26 @@ const LOG10_2: f64 = 0.3010299956639812;
 
 /// One cross-cohort near-clonal pair (already oriented `a` vs `b`).
 pub struct Pair {
-    pub a: usize,        // cohort index (oriented "high" side of the signed value)
-    pub b: usize,        // cohort index
+    pub a: usize,        // cohort index of sample si
+    pub b: usize,        // cohort index of sample sj
     pub dist: f64,       // genomic distance between the two isolates
     pub signed: f64,     // y_a - y_b  (log10 phenotype difference, a over b)
+    pub si: String,      // sample on the a side
+    pub sj: String,      // sample on the b side
+    pub va: f64,         // log10 phenotype of si
+    pub vb: f64,         // log10 phenotype of sj
+}
+
+/// One supporting twin pair for an edge (oriented a over b), kept for inspection.
+#[derive(Clone)]
+pub struct EdgePair {
+    pub si: String,
+    pub sj: String,
+    pub dist: f64,
+    pub va: f64,    // log10 value, a side
+    pub vb: f64,    // log10 value, b side
+    pub signed: f64, // va - vb
+    pub used: bool, // within the chosen tau (entered the median)
 }
 
 /// A fitted edge between two cohorts.
@@ -26,6 +42,7 @@ pub struct Edge {
     pub delta: f64, // median signed log10 (a over b)
     pub se: f64,
     pub weight: f64,
+    pub cand: Vec<EdgePair>, // every cross-cohort candidate (sorted by distance), used-flagged
 }
 
 pub struct Params {
@@ -50,27 +67,27 @@ fn build_edge(
     b: usize,
     sigma_a: f64,
     sigma_b: f64,
-    mut pairs: Vec<(f64, f64)>,
+    mut pairs: Vec<EdgePair>,
     p: &Params,
 ) -> Option<Edge> {
     if pairs.is_empty() {
         return None;
     }
     // sort by distance
-    pairs.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap());
-    let d_min = pairs[0].0;
-    let base_vals: Vec<f64> = pairs.iter().filter(|x| x.0 == d_min).map(|x| x.1).collect();
+    pairs.sort_by(|x, y| x.dist.partial_cmp(&y.dist).unwrap());
+    let d_min = pairs[0].dist;
+    let base_vals: Vec<f64> = pairs.iter().filter(|x| x.dist == d_min).map(|x| x.signed).collect();
     let base = median(&base_vals);
 
     // candidate taus = the distinct distances, ascending
-    let mut taus: Vec<f64> = pairs.iter().map(|x| x.0).collect();
+    let mut taus: Vec<f64> = pairs.iter().map(|x| x.dist).collect();
     taus.dedup();
 
     let mut chosen_tau = *taus.last().unwrap();
-    let mut chosen_vals: Vec<f64> = pairs.iter().map(|x| x.1).collect();
+    let mut chosen_vals: Vec<f64> = pairs.iter().map(|x| x.signed).collect();
     let mut satisfied = false;
     for &tau in &taus {
-        let vals: Vec<f64> = pairs.iter().filter(|x| x.0 <= tau).map(|x| x.1).collect();
+        let vals: Vec<f64> = pairs.iter().filter(|x| x.dist <= tau).map(|x| x.signed).collect();
         let drift = (median(&vals) - base).abs() / LOG10_2;
         if vals.len() >= p.min_support && drift <= p.max_drift_dilutions {
             chosen_tau = tau;
@@ -82,8 +99,13 @@ fn build_edge(
     // If we never reached min_support, fall back to all pairs (kept, but down-weighted
     // through the large tau / small n in the SE below).
     if !satisfied {
-        chosen_vals = pairs.iter().map(|x| x.1).collect();
+        chosen_vals = pairs.iter().map(|x| x.signed).collect();
         chosen_tau = *taus.last().unwrap();
+    }
+
+    // flag which candidates entered the median
+    for pr in pairs.iter_mut() {
+        pr.used = pr.dist <= chosen_tau;
     }
 
     let n = chosen_vals.len();
@@ -103,20 +125,38 @@ fn build_edge(
         delta,
         se,
         weight,
+        cand: pairs,
     })
 }
 
 /// Build all edges from the full list of cross-cohort pairs.
 pub fn build_edges(pairs: &[Pair], n_cohorts: usize, p: &Params) -> Vec<Edge> {
     // group by unordered cohort pair, orient consistently (lower index = a)
-    let mut groups: HashMap<(usize, usize), Vec<(f64, f64)>> = HashMap::new();
+    let mut groups: HashMap<(usize, usize), Vec<EdgePair>> = HashMap::new();
     for pr in pairs {
-        let (a, b, s) = if pr.a < pr.b {
-            (pr.a, pr.b, pr.signed)
+        let ep = if pr.a < pr.b {
+            EdgePair {
+                si: pr.si.clone(),
+                sj: pr.sj.clone(),
+                dist: pr.dist,
+                va: pr.va,
+                vb: pr.vb,
+                signed: pr.signed,
+                used: false,
+            }
         } else {
-            (pr.b, pr.a, -pr.signed)
+            EdgePair {
+                si: pr.sj.clone(),
+                sj: pr.si.clone(),
+                dist: pr.dist,
+                va: pr.vb,
+                vb: pr.va,
+                signed: -pr.signed,
+                used: false,
+            }
         };
-        groups.entry((a, b)).or_default().push((pr.dist, s));
+        let (a, b) = if pr.a < pr.b { (pr.a, pr.b) } else { (pr.b, pr.a) };
+        groups.entry((a, b)).or_default().push(ep);
     }
     let mut edges = Vec::new();
     for ((a, b), v) in groups {

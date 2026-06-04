@@ -72,11 +72,13 @@ phenocal \
   --pairs pairs.tsv \
   --out result \
   --anchor Ivanova          # optional; default = largest cohort
+  --dashboard result.html   # optional; interactive HTML report
 ```
 
 Options: `--already-log` (value is already log10), `--min-support N` (default 5),
 `--max-drift D` (dilutions, default 1.0), `--bootstrap B` (default 10000),
-`--seed S`, `--thresholds 0.75,1.0,1.25,1.5,2.0`.
+`--seed S`, `--thresholds 0.75,1.0,1.25,1.5,2.0`, `--sigma fixed|empirical`,
+`--lambda L`, `--robust` (Student-t bootstrap), `--dashboard FILE`.
 
 ## Outputs
 
@@ -84,6 +86,17 @@ Options: `--already-log` (value is already log10), `--min-support N` (default 5)
 - `<out>.edges.tsv` — per cohort pair: d_min, selected τ, n pairs, fold, SE, weight (transparency on what supports each edge).
 - `<out>.harmonised.tsv` — per sample: raw and harmonised phenotype (`value / 10^δ`).
 - `<out>.labels.tsv` — per sample: harmonised value + probability of tolerance `P(T)` at each threshold.
+
+### Interactive dashboard (`--dashboard FILE`)
+
+A single self-contained HTML file (no dependencies, no network — opens in any
+browser) to inspect the whole run:
+
+- the **comparison graph** drawn in SVG (nodes = cohorts, anchor highlighted, edge thickness ∝ weight);
+- a **forest plot** of the offsets with 95% credible intervals;
+- **before → after** harmonisation (median + IQR per cohort on the log scale);
+- **per-edge detail** — every candidate twin pair with sample IDs, genomic distance, both MICs and the log-ratio, the rows that entered the adaptive-τ median highlighted, and the resulting edge Δ;
+- the **per-isolate** harmonised values and probabilistic labels, with a live filter.
 
 ## Algorithm (per cohort pair, per ruler)
 

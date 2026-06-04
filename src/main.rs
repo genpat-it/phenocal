@@ -12,6 +12,7 @@
 //! Zero external dependencies.
 
 mod calib;
+mod dashboard;
 mod linalg;
 mod rng;
 
@@ -35,6 +36,7 @@ struct Args {
     lambda: f64,
     robust: bool,
     nu: f64,
+    dashboard: Option<String>,
 }
 
 fn usage() -> ! {
@@ -70,6 +72,11 @@ OPTIONS:
     --robust              Robust bootstrap: sample edge perturbations from Student-t
                           instead of Normal (heavier tails, tolerates outliers).
     --nu <DF>             Degrees of freedom for --robust (default 4).
+    --dashboard <FILE>    Also write a self-contained interactive HTML report
+                          (the comparison graph, every twin pair and log-ratio per
+                          edge with the median highlighted, offsets + credible
+                          intervals, before/after distributions, per-isolate
+                          probabilities). Opens in any browser, no dependencies.
     -h, --help            Show this help
 "
     );
@@ -92,6 +99,7 @@ fn parse_args() -> Args {
         lambda: 0.3010299956639812_f64.powi(2), // log10(2)^2 -> reproduces the classic SE
         robust: false,
         nu: 4.0,
+        dashboard: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -127,6 +135,7 @@ fn parse_args() -> Args {
             }
             "--robust" => a.robust = true,
             "--nu" => a.nu = it.next().unwrap_or_else(|| usage()).parse().unwrap_or_else(|_| usage()),
+            "--dashboard" => a.dashboard = Some(it.next().unwrap_or_else(|| usage())),
             "-h" | "--help" => usage(),
             _ => {
                 eprintln!("Unknown argument: {arg}");
@@ -305,6 +314,10 @@ fn main() {
             b: cidx[cb],
             dist,
             signed: yi - yj,
+            si: si.to_string(),
+            sj: sj.to_string(),
+            va: yi,
+            vb: yj,
         });
         n_cross += 1;
     }
@@ -411,6 +424,7 @@ fn main() {
         lab.push_str(&format!("\tP_tol_{}", fmt_thr(*t)));
     }
     lab.push('\n');
+    let mut iso_rows: Vec<dashboard::Iso> = Vec::with_capacity(samples.len());
     for s in &samples {
         let c = &ph.cohort[*s];
         let i = cidx[c];
@@ -426,11 +440,19 @@ fn main() {
                 }
             }
         }
+        let probs: Vec<f64> = counts.iter().map(|&c| c as f64 / b as f64).collect();
         lab.push_str(&format!("{}\t{}\t{:.5}", s, c, harm));
-        for k in 0..args.thresholds.len() {
-            lab.push_str(&format!("\t{:.4}", counts[k] as f64 / b as f64));
+        for pr in &probs {
+            lab.push_str(&format!("\t{:.4}", pr));
         }
         lab.push('\n');
+        iso_rows.push(dashboard::Iso {
+            sample: (*s).clone(),
+            cohort: i,
+            raw: ph.raw_value[*s],
+            harm,
+            probs,
+        });
     }
     write(&format!("{}.labels.tsv", args.out_prefix), &lab);
 
@@ -468,6 +490,32 @@ fn main() {
         "wrote {0}.offsets.tsv {0}.edges.tsv {0}.harmonised.tsv {0}.labels.tsv",
         args.out_prefix
     );
+
+    // ---- optional interactive HTML dashboard ----
+    if let Some(path) = &args.dashboard {
+        let ctx = dashboard::Ctx {
+            cohorts: &ph.cohorts,
+            counts: &ph.counts,
+            anchor,
+            anchor_name: &anchor_name,
+            edges: &edges,
+            sol: &sol,
+            sigma: &sigma,
+            sigma_mode: &args.sigma_mode,
+            lambda: args.lambda,
+            robust: args.robust,
+            nu: args.nu,
+            min_support: args.min_support,
+            max_drift: args.max_drift,
+            bootstrap: args.bootstrap,
+            n_cross,
+            thresholds: &args.thresholds,
+            isolates: &iso_rows,
+        };
+        let html = dashboard::render(&ctx);
+        write(path, &html);
+        eprintln!("wrote interactive dashboard: {path}");
+    }
 }
 
 /// Estimate a cohort's log10-MIC resolution sigma_c from its observed MIC grid:
