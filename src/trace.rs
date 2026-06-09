@@ -497,8 +497,10 @@ fn cutoff_section(s: &mut String, c: &Ctx) {
 
 fn labels_section(s: &mut String, c: &Ctx) {
     s.push_str("## 8. Per-isolate harmonised values and probabilistic labels\n\n");
+    s.push_str("The harmonised MIC shown is the point estimate $\\mathrm{MIC}/10^{\\hat\\delta_c}$. For $P(T)$, the cohort offset is drawn from its bootstrap-derived posterior $\\delta_c\\sim\\mathcal{N}(\\hat\\delta_c,s_c^2)$ ($s_c=$ half the 95% CI width $/1.96$) and $P(T_i(c))$ is the fraction of draws whose harmonised MIC clears $c$:\n\n");
+    s.push_str("$$ P(T_i(c))=\\frac{1}{B}\\sum_{t=1}^{B}\\mathbb{1}\\!\\left[\\frac{\\mathrm{MIC}_i}{10^{\\delta_c^{(t)}}}\\ge c\\right],\\qquad \\delta_c^{(t)}\\sim\\mathcal{N}(\\hat\\delta_c,s_c^2). $$\n\n");
     s.push_str(&format!(
-        "Harmonised MIC $=\\mathrm{{MIC}}/10^{{\\delta_c}}$; $P(T)$ is the bootstrap fraction clearing each threshold. First {} of {} isolates:\n\n",
+        "So $P\\approx0$ or $1$ is a robust label; $P\\approx0.5$ is calibration-sensitive. First {} of {} isolates:\n\n",
         c.isolates.len().min(MAX_ISO),
         c.isolates.len()
     ));
