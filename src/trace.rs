@@ -26,6 +26,22 @@ fn fold(d: f64) -> f64 {
     10f64.powf(d)
 }
 
+/// A legend swatch: a coloured line (optionally dashed) + label.
+fn leg_line(x: f64, y: f64, col: &str, dash: &str, label: &str) -> String {
+    format!(
+        "<line x1=\"{x:.1}\" y1=\"{y:.1}\" x2=\"{:.1}\" y2=\"{y:.1}\" stroke=\"{col}\" stroke-width=\"2\" {dash}/><text x=\"{:.1}\" y=\"{:.1}\" font-size=\"10\" fill=\"#333\">{label}</text>\n",
+        x + 16.0, x + 20.0, y + 3.0
+    )
+}
+
+/// A legend swatch: a coloured box (optional opacity) + label.
+fn leg_box(x: f64, y: f64, col: &str, op: &str, label: &str) -> String {
+    format!(
+        "<rect x=\"{x:.1}\" y=\"{:.1}\" width=\"16\" height=\"9\" fill=\"{col}\" fill-opacity=\"{op}\"/><text x=\"{:.1}\" y=\"{:.1}\" font-size=\"10\" fill=\"#333\">{label}</text>\n",
+        y - 7.0, x + 20.0, y + 3.0
+    )
+}
+
 /// Write the Markdown trace plus its companion SVG figures (referenced from the
 /// Markdown so they render on GitHub). `md_path` ends in `.md`; the figures are
 /// `<stem>_bells.svg` and `<stem>_cutoff.svg` next to it.
@@ -74,7 +90,10 @@ fn sensitivity_section(s: &mut String, c: &Ctx) {
         return;
     }
     s.push_str("## 9. Sensitivity to our formula choices (SE $\\sigma_c$ and drift scale)\n\n");
-    s.push_str("The edge standard error (via the per-cohort resolution $\\sigma_c$) and the drift-tolerance scale are the only modelling choices we make. Re-fitting the offsets under the alternatives shows they are **not load-bearing** — the folds barely move:\n\n");
+    s.push_str("The edge standard error (via the per-cohort resolution $\\sigma_c$) and the drift-tolerance scale are the only modelling choices we make. The variants and their formulas:\n\n");
+    s.push_str("- **$\\sigma_c$** (enters $SE_{ab}=\\sqrt{(\\sigma_a^2+\\sigma_b^2+\\lambda\\tau)/n}$): *fixed* $\\sigma_c=\\log_{10}(2)/\\sqrt{2}\\approx0.213$; *empirical* $\\sigma_c=$ median spacing of the cohort's MIC grid.\n");
+    s.push_str("- **drift scale $\\bar\\sigma_{ab}$** (the $\\tau$ bound $\\le\\kappa\\,\\bar\\sigma_{ab}$): *doubling* $=\\log_{10}2$; *rms* $=\\sqrt{(\\sigma_a^2+\\sigma_b^2)/2}$; *mean* $=(\\sigma_a+\\sigma_b)/2$; *max* $=\\max(\\sigma_a,\\sigma_b)$.\n\n");
+    s.push_str("Re-fitting the offsets under each alternative shows they are **not load-bearing** — the folds barely move:\n\n");
     s.push_str("| variant");
     for name in c.cohorts {
         s.push_str(&format!(" | {}", code(name)));
@@ -174,8 +193,8 @@ fn bells_svg_doc(c: &Ctx) -> String {
 /// with the KDE antimode and GMM crossover marked.
 fn cutoff_svg_doc(c: &Ctx) -> String {
     let lv = c.logharm;
-    let (w, h) = (760.0, 340.0);
-    let (top, left, right, bot) = (18.0, 40.0, 20.0, 34.0);
+    let (w, h) = (760.0, 400.0);
+    let (top, left, right, bot) = (18.0, 40.0, 20.0, 100.0);
     let mut lo = lv.iter().cloned().fold(f64::INFINITY, f64::min) - 0.1;
     let mut hi = lv.iter().cloned().fold(f64::NEG_INFINITY, f64::max) + 0.1;
     if lo >= hi {
@@ -264,6 +283,16 @@ fn cutoff_svg_doc(c: &Ctx) -> String {
             xof(x), baseline + 14.0, trim(f)
         ));
     }
+    // legend (two rows)
+    let r1 = baseline + 36.0;
+    let r2 = baseline + 56.0;
+    s.push_str(&leg_box(left, r1, "#cdd8df", "1", "histogram (harmonised log10-MIC)"));
+    s.push_str(&leg_line(left + 220.0, r1, "#2A9D8F", "", "sensitive component"));
+    s.push_str(&leg_line(left + 410.0, r1, "#E76F51", "", "tolerant component"));
+    s.push_str(&leg_line(left, r2, "#7a5195", "stroke-dasharray=\"4 3\"", "KDE antimode"));
+    s.push_str(&leg_line(left + 150.0, r2, "#2E86AB", "", "GMM crossover"));
+    s.push_str(&leg_box(left + 300.0, r2, "#2E86AB", "0.2", "GMM 95% CI"));
+    s.push_str(&leg_line(left + 430.0, r2, "#000000", "stroke-dasharray=\"2 3\"", "1.25 convention"));
     s.push_str("</svg>\n");
     s
 }
