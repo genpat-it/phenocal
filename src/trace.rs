@@ -486,7 +486,12 @@ fn solve_section(s: &mut String, c: &Ctx) {
 fn bootstrap_section(s: &mut String, c: &Ctx) {
     s.push_str("## 6. Uncertainty: bootstrap credible intervals\n\n");
     s.push_str(&format!(
-        "Each edge is resampled $\\Delta^{{*}}\\sim\\mathcal{{N}}(\\Delta,SE^2)$ ({}) and the WLS re-solved $B={}$ times; the 2.5/97.5 percentiles give the 95% interval.\n\n",
+        "How the intervals are built, in {} repetitions:\n\n\
+         1. for **each edge**, draw a perturbed value from its bell $\\Delta^{{(t)}}\\sim\\mathcal{{N}}(\\Delta_{{ab}},SE_{{ab}}^2)$ ({}) — precise edges (small $SE$) barely move, noisy ones move a lot;\n\
+         2. **re-solve the weighted least squares** with the perturbed edges $\\to$ one offset vector $\\hat\\delta^{{(t)}}$;\n\
+         3. repeat $B={}$ times $\\to$ a **cloud** of $B$ values for each cohort offset.\n\n\
+         The reported **fold** is the cloud's median ($10^{{\\,\\mathrm{{median}}}}$); the **95% credible interval** is its **2.5th–97.5th percentile** (sort the $B$ values, drop the extreme 2.5% on each side):\n\n",
+        c.bootstrap,
         if c.robust { format!("robust Student-$t$, $\\nu={}$", c.nu) } else { "Normal".into() },
         c.bootstrap
     ));
