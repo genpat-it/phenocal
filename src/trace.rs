@@ -156,10 +156,11 @@ fn bells_svg_doc(c: &Ctx) -> String {
     for (k, e) in c.edges.iter().enumerate() {
         let col = palette[k % palette.len()];
         s.push_str(&format!(
-            "<text x=\"{:.1}\" y=\"{ly:.1}\" font-size=\"9\" fill=\"{col}\">{}–{} ({:.1}×, w={:.0})</text>\n",
+            "<text x=\"{:.1}\" y=\"{ly:.1}\" font-size=\"9\" fill=\"{col}\">{}–{} (n={}, {:.1}×, w={:.0})</text>\n",
             left + 4.0,
             c.cohorts[e.a].replace('&', "&amp;").replace('<', "&lt;"),
             c.cohorts[e.b].replace('&', "&amp;").replace('<', "&lt;"),
+            e.n,
             fold(e.delta),
             e.weight
         ));
