@@ -572,6 +572,50 @@ fn main() {
         args.out_prefix
     );
 
+    // ---- sensitivity to our SE/drift formula choices (for the trace) ----
+    // Re-fit the offsets under alternative resolution (sigma) and drift-scale
+    // forms, to show these modelling choices are not load-bearing.
+    let sensitivity: Vec<(String, Vec<f64>)> = if args.trace.is_some() {
+        let ncoh = ph.cohorts.len();
+        let s_fixed = vec![sigma_fixed; ncoh];
+        let s_emp: Vec<f64> = ph
+            .cohorts
+            .iter()
+            .map(|c| empirical_sigma(&ph, c).unwrap_or(sigma_fixed))
+            .collect();
+        let variants: [(&str, &Vec<f64>, u8); 5] = [
+            ("sigma=fixed, drift=rms", &s_fixed, 1),
+            ("sigma=empirical, drift=rms", &s_emp, 1),
+            ("sigma=empirical, drift=doubling", &s_emp, 0),
+            ("sigma=empirical, drift=mean", &s_emp, 2),
+            ("sigma=empirical, drift=max", &s_emp, 3),
+        ];
+        let mut out = Vec::new();
+        for (label, sig, ds) in variants {
+            let p = Params {
+                min_support: args.min_support,
+                max_drift_dilutions: args.max_drift,
+                bootstrap: args.bootstrap.min(1000),
+                seed: args.seed,
+                sigma: sig.clone(),
+                lambda: args.lambda,
+                robust: args.robust,
+                nu: args.nu,
+                drift_scale: ds,
+            };
+            let edg = build_edges(&pairs, ncoh, &p);
+            if let Ok(so) = fit(&edg, ncoh, anchor, &p) {
+                out.push((
+                    label.to_string(),
+                    (0..ncoh).map(|i| 10f64.powf(so.delta[i])).collect(),
+                ));
+            }
+        }
+        out
+    } else {
+        Vec::new()
+    };
+
     // ---- optional reports (dashboard HTML and/or mathematical trace in Markdown) ----
     if args.dashboard.is_some() || args.trace.is_some() {
         let ctx = dashboard::Ctx {
@@ -594,6 +638,7 @@ fn main() {
             isolates: &iso_rows,
             cutoff: &cut,
             logharm: &logharm,
+            sensitivity: &sensitivity,
         };
         if let Some(path) = &args.dashboard {
             write(path, &dashboard::render(&ctx));

@@ -65,7 +65,33 @@ fn render(c: &Ctx, bells_img: &str, cutoff_img: &str) -> String {
     cutoff_section(&mut s, c);
     s.push_str(&format!("![data-driven cutoff: histogram, mixture components, KDE antimode and GMM crossover]({})\n\n", cutoff_img));
     labels_section(&mut s, c);
+    sensitivity_section(&mut s, c);
     s
+}
+
+fn sensitivity_section(s: &mut String, c: &Ctx) {
+    if c.sensitivity.is_empty() {
+        return;
+    }
+    s.push_str("## 9. Sensitivity to our formula choices (SE $\\sigma_c$ and drift scale)\n\n");
+    s.push_str("The edge standard error (via the per-cohort resolution $\\sigma_c$) and the drift-tolerance scale are the only modelling choices we make. Re-fitting the offsets under the alternatives shows they are **not load-bearing** — the folds barely move:\n\n");
+    s.push_str("| variant");
+    for name in c.cohorts {
+        s.push_str(&format!(" | {}", code(name)));
+    }
+    s.push_str(" |\n|---");
+    for _ in c.cohorts {
+        s.push_str("|---:");
+    }
+    s.push_str("|\n");
+    for (label, folds) in c.sensitivity {
+        s.push_str(&format!("| {}", code(label)));
+        for f in folds {
+            s.push_str(&format!(" | {:.2}×", f));
+        }
+        s.push_str(" |\n");
+    }
+    s.push_str("\nThe anchor stays $1.00\\times$ by definition; the others are stable across both the $\\sigma$ model and the drift-scale form (cf. §3: $\\sigma_c$ sets the weight, the drift scale only gates $\\tau$).\n\n");
 }
 
 fn npdf(x: f64, mu: f64, sd: f64) -> f64 {

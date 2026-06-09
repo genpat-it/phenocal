@@ -41,6 +41,9 @@ pub struct Ctx<'a> {
     pub isolates: &'a [Iso],
     pub cutoff: &'a crate::cutoff::Cutoff,
     pub logharm: &'a [f64], // harmonised log10-MIC values, for the cutoff panel
+    /// Sensitivity table: (variant label, per-cohort fold) for alternative
+    /// SE/drift formulas. Empty unless requested (used by the trace).
+    pub sensitivity: &'a [(String, Vec<f64>)],
 }
 
 fn esc(s: &str) -> String {
