@@ -122,8 +122,11 @@ browser) to inspect the whole run:
    difference `s = y_a − y_b` (oriented `a` over `b`); keep smallest-`d` instance
    per isolate pair.
 2. Adaptive `τ`: smallest distance bound with ≥ `min-support` pairs **and**
-   median drift ≤ `max-drift` dilutions from the `d_min` value.
-3. Edge value `Δ = median(s | d ≤ τ)`; `SE = log10(2)·sqrt((1+τ)/n)`; `w = 1/SE²`.
+   median drift ≤ `max-drift · σ̄_ab` from the `d_min` value, where `σ̄_ab` is the
+   edge resolution set by `--drift-scale` (`= log10(2)` for two-fold grids).
+3. Edge value `Δ = median(s | d ≤ τ)`; `SE = sqrt((σ_a² + σ_b² + λ·τ)/n)` with
+   per-cohort resolution `σ_c` (`--sigma`); `w = 1/SE²`. (Reduces to
+   `log10(2)·sqrt((1+τ)/n)` when all cohorts are two-fold.)
 4. Weighted least squares on the comparison graph for cohort offsets, anchor δ=0.
 5. Bootstrap (sample `Δ* ~ N(Δ, SE²)`, refit) → 95% credible intervals.
 6. Per threshold `c`: `P(T_i(c)) = mean over draws of [ MIC_i / 10^δ ≥ c ]`.
