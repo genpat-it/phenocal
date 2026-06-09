@@ -600,8 +600,8 @@ fn main() {
             eprintln!("wrote interactive dashboard: {path}");
         }
         if let Some(path) = &args.trace {
-            write(path, &trace::render(&ctx));
-            eprintln!("wrote mathematical trace (Markdown): {path}");
+            trace::write_report(&ctx, path);
+            eprintln!("wrote mathematical trace (Markdown + SVG figures): {path}");
         }
     }
 }

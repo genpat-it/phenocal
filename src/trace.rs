@@ -26,7 +26,21 @@ fn fold(d: f64) -> f64 {
     10f64.powf(d)
 }
 
-pub fn render(c: &Ctx) -> String {
+/// Write the Markdown trace plus its companion SVG figures (referenced from the
+/// Markdown so they render on GitHub). `md_path` ends in `.md`; the figures are
+/// `<stem>_bells.svg` and `<stem>_cutoff.svg` next to it.
+pub fn write_report(c: &Ctx, md_path: &str) {
+    let stem = md_path.strip_suffix(".md").unwrap_or(md_path);
+    let bells = format!("{stem}_bells.svg");
+    let cutoff = format!("{stem}_cutoff.svg");
+    let base = |p: &str| p.rsplit('/').next().unwrap_or(p).to_string();
+    let md = render(c, &base(&bells), &base(&cutoff));
+    let _ = std::fs::write(md_path, md);
+    let _ = std::fs::write(&bells, bells_svg_doc(c));
+    let _ = std::fs::write(&cutoff, cutoff_svg_doc(c));
+}
+
+fn render(c: &Ctx, bells_img: &str, cutoff_img: &str) -> String {
     let mut s = String::with_capacity(1 << 16);
     s.push_str("# phenocal — mathematical trace of this run\n\n");
     s.push_str(&format!(
@@ -37,14 +51,205 @@ pub fn render(c: &Ctx) -> String {
         c.edges.len(),
         code(c.anchor_name)
     ));
+    s.push_str("> **Tip — the reference does not matter.** The anchor ($\\delta=0$) is only a coordinate convention. Re-anchoring to any other cohort rescales the offsets, the threshold grid and the data *together*, so the harmonised labels are **unchanged** (anchor invariance, Lemma 1): the results do **not** depend on the reference choice.\n\n");
     inputs_section(&mut s, c);
     model_section(&mut s);
+    symbols_section(&mut s);
     edges_section(&mut s, c);
     solve_section(&mut s, c);
     bootstrap_section(&mut s, c);
+    s.push_str(&format!(
+        "Per-edge perturbation bells $\\mathcal{{N}}(\\Delta_{{ab}},SE_{{ab}}^2)$ the bootstrap samples from (precise edges are tall and narrow, noisy ones short and wide):\n\n![per-edge bootstrap bells]({})\n\n",
+        bells_img
+    ));
     cutoff_section(&mut s, c);
+    s.push_str(&format!("![data-driven cutoff: histogram, mixture components, KDE antimode and GMM crossover]({})\n\n", cutoff_img));
     labels_section(&mut s, c);
     s
+}
+
+fn npdf(x: f64, mu: f64, sd: f64) -> f64 {
+    let z = (x - mu) / sd;
+    (-0.5 * z * z).exp() / (sd * 2.506_628_274_631_000_3)
+}
+
+/// Per-edge Gaussian perturbation bells N(Delta, SE^2) on the log10-fold axis.
+fn bells_svg_doc(c: &Ctx) -> String {
+    let (w, h) = (760.0, 360.0);
+    let (top, left, right, bot) = (24.0, 40.0, 20.0, 36.0);
+    let mut lo = f64::INFINITY;
+    let mut hi = f64::NEG_INFINITY;
+    for e in c.edges {
+        lo = lo.min(e.delta - 3.0 * e.se);
+        hi = hi.max(e.delta + 3.0 * e.se);
+    }
+    if !lo.is_finite() {
+        lo = -1.0;
+        hi = 1.0;
+    }
+    let xspan = w - left - right;
+    let yspan = h - top - bot;
+    let xof = |x: f64| left + (x - lo) / (hi - lo) * xspan;
+    let m = 240usize;
+    let grid: Vec<f64> = (0..m).map(|i| lo + (hi - lo) * i as f64 / (m as f64 - 1.0)).collect();
+    let ymax = c
+        .edges
+        .iter()
+        .map(|e| npdf(e.delta, e.delta, e.se))
+        .fold(1e-9, f64::max);
+    let yof = |y: f64| top + yspan - (y / ymax) * yspan;
+    let palette = ["#2E86AB", "#E76F51", "#2A9D8F", "#7a5195", "#bc5090", "#ffa600", "#003f5c", "#58508d", "#ff6361"];
+    let mut s = format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {w} {h}\" font-family=\"sans-serif\">\n<rect width=\"{w}\" height=\"{h}\" fill=\"white\"/>\n"
+    );
+    let baseline = top + yspan;
+    // fold ticks
+    for &f in &[0.5f64, 1.0, 2.0, 5.0, 10.0, 20.0] {
+        let xl = f.log10();
+        if xl < lo || xl > hi {
+            continue;
+        }
+        let px = xof(xl);
+        let ty = baseline + 14.0;
+        let lab = trim(f);
+        s.push_str(&format!(
+            "<line x1=\"{px:.1}\" y1=\"{top:.1}\" x2=\"{px:.1}\" y2=\"{baseline:.1}\" stroke=\"#eee\"/><text x=\"{px:.1}\" y=\"{ty:.1}\" font-size=\"10\" fill=\"#888\" text-anchor=\"middle\">{lab}×</text>\n"
+        ));
+    }
+    for (k, e) in c.edges.iter().enumerate() {
+        let col = palette[k % palette.len()];
+        let mut p = String::from("<path d=\"");
+        for (j, &x) in grid.iter().enumerate() {
+            p.push_str(&format!("{}{:.1} {:.1} ", if j == 0 { "M" } else { "L" }, xof(x), yof(npdf(x, e.delta, e.se))));
+        }
+        p.push_str(&format!("\" fill=\"none\" stroke=\"{col}\" stroke-width=\"1.8\" stroke-opacity=\"0.85\"/>\n"));
+        s.push_str(&p);
+    }
+    // legend
+    let mut ly = top + 4.0;
+    for (k, e) in c.edges.iter().enumerate() {
+        let col = palette[k % palette.len()];
+        s.push_str(&format!(
+            "<text x=\"{:.1}\" y=\"{ly:.1}\" font-size=\"9\" fill=\"{col}\">{}–{} ({:.1}×, w={:.0})</text>\n",
+            left + 4.0,
+            c.cohorts[e.a].replace('&', "&amp;").replace('<', "&lt;"),
+            c.cohorts[e.b].replace('&', "&amp;").replace('<', "&lt;"),
+            fold(e.delta),
+            e.weight
+        ));
+        ly += 11.0;
+    }
+    s.push_str("</svg>\n");
+    s
+}
+
+/// Cutoff density: histogram of harmonised log10-MIC + the two mixture components,
+/// with the KDE antimode and GMM crossover marked.
+fn cutoff_svg_doc(c: &Ctx) -> String {
+    let lv = c.logharm;
+    let (w, h) = (760.0, 340.0);
+    let (top, left, right, bot) = (18.0, 40.0, 20.0, 34.0);
+    let mut lo = lv.iter().cloned().fold(f64::INFINITY, f64::min) - 0.1;
+    let mut hi = lv.iter().cloned().fold(f64::NEG_INFINITY, f64::max) + 0.1;
+    if lo >= hi {
+        lo = -0.5;
+        hi = 1.5;
+    }
+    let cut = c.cutoff;
+    let xspan = w - left - right;
+    let yspan = h - top - bot;
+    let xof = |x: f64| left + (x - lo) / (hi - lo) * xspan;
+    let nb = 32usize;
+    let bw = (hi - lo) / nb as f64;
+    let mut hist = vec![0f64; nb];
+    for &x in lv {
+        hist[(((x - lo) / bw) as usize).min(nb - 1)] += 1.0;
+    }
+    let n = lv.len().max(1) as f64;
+    for v in hist.iter_mut() {
+        *v /= n * bw;
+    }
+    let comp = |x: f64, which: u8| {
+        if which == 0 {
+            crate::cutoff::component_density(x, cut.comp_lo)
+        } else {
+            crate::cutoff::component_density(x, cut.comp_hi)
+        }
+    };
+    let m = 256usize;
+    let grid: Vec<f64> = (0..m).map(|i| lo + (hi - lo) * i as f64 / (m as f64 - 1.0)).collect();
+    let mut ymax = hist.iter().cloned().fold(0.0, f64::max);
+    for &x in &grid {
+        ymax = ymax.max(comp(x, 0)).max(comp(x, 1));
+    }
+    if ymax <= 0.0 {
+        ymax = 1.0;
+    }
+    let yof = |y: f64| top + yspan - (y / ymax) * yspan;
+    let baseline = top + yspan;
+    let mut s = format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {w} {h}\" font-family=\"sans-serif\">\n<rect width=\"{w}\" height=\"{h}\" fill=\"white\"/>\n"
+    );
+    if cut.gmm_lo.is_finite() && cut.gmm_hi.is_finite() {
+        let (x1, x2) = (xof(cut.gmm_lo), xof(cut.gmm_hi));
+        s.push_str(&format!(
+            "<rect x=\"{:.1}\" y=\"{top:.1}\" width=\"{:.1}\" height=\"{yspan:.1}\" fill=\"#2E86AB\" fill-opacity=\"0.10\"/>\n",
+            x1, (x2 - x1).max(0.0)
+        ));
+    }
+    for (i, &d) in hist.iter().enumerate() {
+        let px = xof(lo + i as f64 * bw);
+        let pw = (xof(lo + (i as f64 + 1.0) * bw) - px).max(0.5);
+        let py = yof(d);
+        s.push_str(&format!("<rect x=\"{px:.1}\" y=\"{py:.1}\" width=\"{pw:.1}\" height=\"{:.1}\" fill=\"#cdd8df\"/>\n", baseline - py));
+    }
+    for (which, col) in [(0u8, "#2A9D8F"), (1u8, "#E76F51")] {
+        let mut p = String::from("<path d=\"");
+        for (j, &x) in grid.iter().enumerate() {
+            p.push_str(&format!("{}{:.1} {:.1} ", if j == 0 { "M" } else { "L" }, xof(x), yof(comp(x, which))));
+        }
+        p.push_str(&format!("\" fill=\"none\" stroke=\"{col}\" stroke-width=\"2\"/>\n"));
+        s.push_str(&p);
+    }
+    let mut vline = |x: f64, col: &str, dash: &str| {
+        s.push_str(&format!(
+            "<line x1=\"{0:.1}\" y1=\"{top:.1}\" x2=\"{0:.1}\" y2=\"{baseline:.1}\" stroke=\"{col}\" stroke-width=\"2\" {dash}/>\n",
+            xof(x)
+        ));
+    };
+    if let Some(a) = cut.kde_antimode {
+        vline(a, "#7a5195", "stroke-dasharray=\"4 3\"");
+    }
+    if let Some(g) = cut.gmm_crossover {
+        vline(g, "#2E86AB", "");
+    }
+    let conv = 1.25f64.log10();
+    if conv > lo && conv < hi {
+        vline(conv, "#000000", "stroke-dasharray=\"2 3\"");
+    }
+    for &f in &[0.3f64, 0.6, 1.25, 2.5, 5.0, 10.0] {
+        let x = f.log10();
+        if x < lo || x > hi {
+            continue;
+        }
+        s.push_str(&format!(
+            "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"10\" fill=\"#888\" text-anchor=\"middle\">{}</text>\n",
+            xof(x), baseline + 14.0, trim(f)
+        ));
+    }
+    s.push_str("</svg>\n");
+    s
+}
+
+/// Trim trailing zeros for axis labels.
+fn trim(f: f64) -> String {
+    let s = format!("{:.2}", f);
+    let s = s.trim_end_matches('0').trim_end_matches('.').to_string();
+    if s.is_empty() {
+        "0".to_string()
+    } else {
+        s
+    }
 }
 
 fn inputs_section(s: &mut String, c: &Ctx) {
@@ -73,13 +278,43 @@ fn model_section(s: &mut String) {
     s.push_str("## 2. The measurement model\n\n");
     s.push_str("Observed $y_{ic}=\\log_{10}\\mathrm{MIC}_{ic}$ decomposes as\n\n");
     s.push_str("$$ y_{ic}=\\mu_i+\\delta_c+\\varepsilon_{ic} $$\n\n");
-    s.push_str("with $\\mu_i$ the unknown true biology of genome $i$, $\\delta_c$ the cohort/protocol offset (what we estimate), and $\\varepsilon_{ic}$ zero-median noise. For two near-clonal isolates ($\\mu_i\\approx\\mu_j$) in cohorts $a,b$ the biology cancels:\n\n");
+    s.push_str("with $\\mu_i$ the unknown true biology of genome $i$, $\\delta_c$ the cohort/protocol offset (what we estimate), and $\\varepsilon_{ic}$ random measurement noise.\n\n");
+    s.push_str("> **Tip — the noise is mean-zero.** $\\mathbb{E}[\\varepsilon_{ic}]=0$ by construction: any *constant* bias of a lab is absorbed into $\\delta_c$, so what is left in $\\varepsilon$ has no preferred direction. If $\\varepsilon$ is also symmetric, its *median* is $0$ too — which is what makes the median estimator below unbiased.\n\n");
+    s.push_str("For two near-clonal isolates ($\\mu_i\\approx\\mu_j$) in cohorts $a,b$ the biology cancels:\n\n");
     s.push_str("$$ y_{ia}-y_{jb}=\\underbrace{(\\mu_i-\\mu_j)}_{\\approx 0}+(\\delta_a-\\delta_b)+(\\varepsilon_{ia}-\\varepsilon_{jb}) $$\n\n");
     s.push_str("The **median over many twin pairs** of an edge kills the noise, leaving $\\Delta_{ab}\\approx\\delta_a-\\delta_b$.\n\n");
 }
 
+fn symbols_section(s: &mut String) {
+    s.push_str("## 3. Symbols (legend)\n\n");
+    s.push_str("| Symbol | Meaning | Where it acts |\n|---|---|---|\n");
+    let rows = [
+        ("$y=\\log_{10}\\mathrm{MIC}$", "the measurement, on the log scale", "everywhere"),
+        ("$\\mu_i$", "true biology of genome $i$ (unknown)", "model"),
+        ("$\\delta_c$", "cohort/protocol offset — what we estimate", "model / solution"),
+        ("$\\varepsilon$", "measurement noise, $\\mathbb{E}[\\varepsilon]=0$", "model"),
+        ("$s=y_a-y_b$", "twin log-ratio of one cross-cohort pair", "per edge"),
+        ("$d$", "genomic distance of a pair", "per edge"),
+        ("$\\Delta_{ab}$", "edge value = median of $s$ over the twins", "per edge"),
+        ("$\\tau_{ab}$", "adaptive distance bound (which twins enter the median)", "$\\tau$ selection"),
+        ("$n_{ab}$", "number of supporting twin pairs", "SE & $\\tau$"),
+        ("$\\sigma_c$", "cohort measurement resolution (grid spacing)", "**SE / weight**"),
+        ("$\\lambda$", "biological-drift variance per unit distance", "**SE**"),
+        ("$\\kappa$", "drift tolerance — bound is $\\kappa\\,\\bar\\sigma_{ab}$ in $\\tau$ selection; **not** in the SE", "**$\\tau$ selection only**"),
+        ("$\\bar\\sigma_{ab}$", "edge resolution scale, RMS of $\\sigma_a,\\sigma_b$", "$\\tau$ drift bound"),
+        ("$SE_{ab}$", "edge standard error $=\\sqrt{(\\sigma_a^2+\\sigma_b^2+\\lambda\\tau)/n}$", "weight"),
+        ("$w_{ab}=1/SE_{ab}^2$", "edge weight (inverse variance)", "WLS"),
+        ("$\\hat\\delta$", "fitted offsets (anchor $=0$)", "solution"),
+        ("$P(T_i)$", "probability isolate $i$ is tolerant", "labels"),
+    ];
+    for (sym, mean, where_) in rows {
+        s.push_str(&format!("| {} | {} | {} |\n", sym, mean, where_));
+    }
+    s.push_str("\n> Note: $\\kappa$ and $\\sigma_c$ play **different roles** — $\\sigma_c$ sets how much each edge is *trusted* (the weight $1/SE^2$), while $\\kappa$ sets how far the median may *drift* before $\\tau$ stops widening. They only meet in the drift bound $\\kappa\\,\\bar\\sigma_{ab}$; $\\kappa$ never enters the SE.\n\n");
+}
+
 fn edges_section(s: &mut String, c: &Ctx) {
-    s.push_str("## 3. Per-edge construction (with the real twins)\n\n");
+    s.push_str("## 4. Per-edge construction (with the real twins)\n\n");
     for e in c.edges {
         let (a, b) = (code(&c.cohorts[e.a]), code(&c.cohorts[e.b]));
         s.push_str(&format!("### {} — {}\n\n", a, b));
@@ -132,7 +367,7 @@ fn tau_scan(s: &mut String, e: &crate::calib::Edge) {
     let base = median(&base);
     let mut taus: Vec<f64> = pairs.iter().map(|x| x.0).collect();
     taus.dedup();
-    s.push_str("| $\\tau$ | $n(\\tau)$ | median$_{\\le\\tau}$ | drift (dil.) | |\n|---:|---:|---:|---:|:--|\n");
+    s.push_str("| $\\tau$ | $n(\\tau)$ | $\\mathrm{median}_{\\le\\tau}$ | drift (dil.) | |\n|---:|---:|---:|---:|:--|\n");
     for &t in taus.iter().take(8) {
         let vals: Vec<f64> = pairs.iter().filter(|x| x.0 <= t).map(|x| x.1).collect();
         let med = median(&vals);
@@ -154,7 +389,7 @@ fn tau_scan(s: &mut String, e: &crate::calib::Edge) {
 }
 
 fn solve_section(s: &mut String, c: &Ctx) {
-    s.push_str("## 4. Weighted least squares (the real matrices)\n\n");
+    s.push_str("## 5. Weighted least squares (the real matrices)\n\n");
     s.push_str("One row per edge ($+1$ at $a$, $-1$ at $b$): $A\\delta\\approx\\Delta$, weights $W=\\operatorname{diag}(w_{ab})$. The solution solves the normal equations\n\n");
     s.push_str("$$ A^{\\top}WA\\,\\hat\\delta = A^{\\top}W\\Delta, $$\n\n");
     s.push_str("where $A^{\\top}WA$ is the weighted graph Laplacian; the anchor row/column is removed (fixed to $0$).\n\n");
@@ -217,7 +452,7 @@ fn solve_section(s: &mut String, c: &Ctx) {
 }
 
 fn bootstrap_section(s: &mut String, c: &Ctx) {
-    s.push_str("## 5. Uncertainty: bootstrap credible intervals\n\n");
+    s.push_str("## 6. Uncertainty: bootstrap credible intervals\n\n");
     s.push_str(&format!(
         "Each edge is resampled $\\Delta^{{*}}\\sim\\mathcal{{N}}(\\Delta,SE^2)$ ({}) and the WLS re-solved $B={}$ times; the 2.5/97.5 percentiles give the 95% interval.\n\n",
         if c.robust { format!("robust Student-$t$, $\\nu={}$", c.nu) } else { "Normal".into() },
@@ -238,7 +473,7 @@ fn bootstrap_section(s: &mut String, c: &Ctx) {
 
 fn cutoff_section(s: &mut String, c: &Ctx) {
     let cut = c.cutoff;
-    s.push_str("## 6. Data-driven cutoff (harmonised scale)\n\n");
+    s.push_str("## 7. Data-driven cutoff (harmonised scale)\n\n");
     s.push_str("A 2-component Gaussian mixture is fitted to the harmonised $\\log_{10}$-MIC; the KDE antimode (density valley) and the mixture crossover (Bayes-optimal boundary) bracket the cutoff.\n\n");
     let mgl = |o: Option<f64>| o.map(|x| format!("{:.3}", fold(x))).unwrap_or_else(|| "n/a".into());
     let ci = |x: f64| if x.is_finite() { format!("{:.3}", fold(x)) } else { "n/a".into() };
@@ -256,7 +491,7 @@ fn cutoff_section(s: &mut String, c: &Ctx) {
 }
 
 fn labels_section(s: &mut String, c: &Ctx) {
-    s.push_str("## 7. Per-isolate harmonised values and probabilistic labels\n\n");
+    s.push_str("## 8. Per-isolate harmonised values and probabilistic labels\n\n");
     s.push_str(&format!(
         "Harmonised MIC $=\\mathrm{{MIC}}/10^{{\\delta_c}}$; $P(T)$ is the bootstrap fraction clearing each threshold. First {} of {} isolates:\n\n",
         c.isolates.len().min(MAX_ISO),
