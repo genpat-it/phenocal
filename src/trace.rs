@@ -489,9 +489,9 @@ fn cutoff_section(s: &mut String, c: &Ctx) {
     s.push_str("$$ p(x)=w_1\\,\\mathcal{N}(x\\mid\\mu_1,\\sigma_1^2)+w_2\\,\\mathcal{N}(x\\mid\\mu_2,\\sigma_2^2). $$\n\n");
     s.push_str("EM iterates the responsibilities (E-step) and the weighted moments (M-step):\n\n");
     s.push_str("$$ r_k(x_i)=\\frac{w_k\\,\\mathcal{N}(x_i\\mid\\mu_k,\\sigma_k^2)}{\\sum_{l}w_l\\,\\mathcal{N}(x_i\\mid\\mu_l,\\sigma_l^2)},\\quad \\mu_k=\\frac{\\sum_i r_k(x_i)\\,x_i}{\\sum_i r_k(x_i)},\\quad \\sigma_k^2=\\frac{\\sum_i r_k(x_i)(x_i-\\mu_k)^2}{\\sum_i r_k(x_i)},\\quad w_k=\\frac{\\sum_i r_k(x_i)}{n}. $$\n\n");
-    s.push_str("The **crossover** is the $x^\\*\\in(\\mu_1,\\mu_2)$ where the two weighted components are equal — the Bayes-optimal boundary (posterior $=1/2$):\n\n");
-    s.push_str("$$ w_1\\,\\mathcal{N}(x^\\*\\mid\\mu_1,\\sigma_1^2)=w_2\\,\\mathcal{N}(x^\\*\\mid\\mu_2,\\sigma_2^2). $$\n\n");
-    s.push_str("A 95% interval is obtained by **bootstrap**: resample $\\{x_i\\}$ with replacement, refit the mixture, recompute $x^\\*$, $B$ times, and take the 2.5/97.5 percentiles.\n\n");
+    s.push_str("The **crossover** is the $x^{*}\\in(\\mu_1,\\mu_2)$ where the two weighted components are equal — the Bayes-optimal boundary (posterior $=1/2$):\n\n");
+    s.push_str("$$ w_1\\,\\mathcal{N}(x^{*}\\mid\\mu_1,\\sigma_1^2)=w_2\\,\\mathcal{N}(x^{*}\\mid\\mu_2,\\sigma_2^2). $$\n\n");
+    s.push_str("A 95% interval is obtained by **bootstrap**: resample $\\{x_i\\}$ with replacement, refit the mixture, recompute $x^{*}$, $B$ times, and take the 2.5/97.5 percentiles.\n\n");
     s.push_str("On this run:\n\n");
     let mgl = |o: Option<f64>| o.map(|x| format!("{:.3}", fold(x))).unwrap_or_else(|| "n/a".into());
     let ci = |x: f64| if x.is_finite() { format!("{:.3}", fold(x)) } else { "n/a".into() };
