@@ -341,10 +341,14 @@ fn edges_section(s: &mut String, c: &Ctx) {
             s.push_str(&format!("*({} further pairs not shown.)*\n\n", cand.len() - shown));
         }
 
-        s.push_str("**Adaptive $\\tau$ selection** — widen $\\tau$ from $d_{\\min}$ to the smallest distance with $\\ge n_{\\min}$ pairs and drift within tolerance:\n\n");
-        tau_scan(s, e);
-
         let (sa, sb) = (c.sigma.get(e.a).copied().unwrap_or(0.0), c.sigma.get(e.b).copied().unwrap_or(0.0));
+        let res = ((sa * sa + sb * sb) / 2.0).sqrt().max(1e-9);
+        s.push_str(&format!(
+            "**Adaptive $\\tau$ selection.** Widen $\\tau$ from $d_{{\\min}}$ to the smallest distance with $\\ge n_{{\\min}}={}$ pairs **and** drift $\\le\\kappa\\,\\bar\\sigma_{{ab}}$. Here $\\bar\\sigma_{{ab}}=\\sqrt{{(\\sigma_a^2+\\sigma_b^2)/2}}={:.3}$ and $\\kappa={}$, so the drift (last column, in units of $\\bar\\sigma_{{ab}}$) must stay $\\le{}$:\n\n",
+            c.min_support, res, c.max_drift, c.max_drift
+        ));
+        tau_scan(s, e, res, c.max_drift);
+
         s.push_str(&format!(
             "$$ \\Delta_{{ab}}=\\operatorname{{median}}\\{{s:d\\le\\tau\\}}={:.4}\\ (\\text{{fold }}{:.2}\\times),\\quad \\tau={:.0},\\ n={}. $$\n\n",
             e.delta, fold(e.delta), e.tau, e.n
@@ -356,7 +360,7 @@ fn edges_section(s: &mut String, c: &Ctx) {
     }
 }
 
-fn tau_scan(s: &mut String, e: &crate::calib::Edge) {
+fn tau_scan(s: &mut String, e: &crate::calib::Edge, res: f64, kappa: f64) {
     let mut pairs: Vec<(f64, f64)> = e.cand.iter().map(|p| (p.dist, p.signed)).collect();
     pairs.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap());
     if pairs.is_empty() {
@@ -367,18 +371,19 @@ fn tau_scan(s: &mut String, e: &crate::calib::Edge) {
     let base = median(&base);
     let mut taus: Vec<f64> = pairs.iter().map(|x| x.0).collect();
     taus.dedup();
-    s.push_str("| $\\tau$ | $n(\\tau)$ | $\\mathrm{median}_{\\le\\tau}$ | drift (dil.) | |\n|---:|---:|---:|---:|:--|\n");
+    s.push_str("| $\\tau$ | $n(\\tau)$ | $\\mathrm{median}_{\\le\\tau}$ | drift $/\\bar\\sigma$ | $\\le\\kappa$? | |\n|---:|---:|---:|---:|:--:|:--|\n");
     for &t in taus.iter().take(8) {
         let vals: Vec<f64> = pairs.iter().filter(|x| x.0 <= t).map(|x| x.1).collect();
         let med = median(&vals);
-        let drift = (med - base).abs() / LOG10_2;
+        let drift = (med - base).abs() / res;
         let chosen = (t - e.tau).abs() < 1e-9;
         s.push_str(&format!(
-            "| {:.0} | {} | {:.3} | {:.2} | {} |\n",
+            "| {:.0} | {} | {:.3} | {:.2} | {} | {} |\n",
             t,
             vals.len(),
             med,
             drift,
+            if drift <= kappa { "✓" } else { "✗" },
             if chosen { "← chosen" } else { "" }
         ));
     }
