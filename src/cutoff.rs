@@ -41,7 +41,9 @@ fn kde_antimode(sorted: &[f64]) -> Option<f64> {
         })
         .collect();
     // dominant mode (usually the sensitive peak)
-    let gm = (0..m).max_by(|&a, &b| dens[a].1.partial_cmp(&dens[b].1).unwrap()).unwrap();
+    let gm = (0..m)
+        .max_by(|&a, &b| dens[a].1.partial_cmp(&dens[b].1).unwrap())
+        .unwrap();
     // first valley to the RIGHT of the dominant mode that is followed by a
     // secondary peak (the sensitive->tolerant antimode); else search left.
     let valley = |range: &mut dyn Iterator<Item = usize>| -> Option<usize> {
@@ -182,4 +184,32 @@ pub fn estimate(logvals: &[f64], bootstrap: usize, seed: u64) -> Cutoff {
 /// One weighted component density w·N(x|mu,sd) for plotting.
 pub fn component_density(x: f64, c: (f64, f64, f64)) -> f64 {
     c.0 * npdf(x, c.1, c.2)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn crossover_lies_between_two_modes() {
+        // bimodal log10 values: a tight cluster near 0 and another near 1
+        let mut v = Vec::new();
+        for i in 0..60 {
+            v.push(0.0 + (i as f64) * 0.002); // ~[0, 0.12]
+            v.push(1.0 + (i as f64) * 0.002); // ~[1, 1.12]
+        }
+        let c = estimate(&v, 50, 7);
+        let x = c
+            .gmm_crossover
+            .expect("expected a GMM crossover for clearly bimodal data");
+        assert!(
+            x > 0.1 && x < 1.0,
+            "crossover {x} not between the two modes"
+        );
+        // the two fitted components must straddle the crossover
+        assert!(
+            c.comp_lo.1 < x && c.comp_hi.1 > x,
+            "components do not straddle crossover"
+        );
+    }
 }

@@ -2,7 +2,7 @@
 //! cohorts/batches, with uncertainty-propagated probabilistic labels.
 //!
 //! Method (Algorithm 1 of de Ruvo, Castelli, Di Pasquale & Radomski): near-clonal cross-cohort pairs are
-//! genomic natural controls; a shared genome cancels the biological component,
+//! genomic natural controls; a shared genome holds the biological component approximately fixed,
 //! so the phenotype difference between matched isolates estimates the
 //! cohort/protocol offset difference. Offsets are fitted on a comparison graph
 //! by weighted least squares (one node fixed as anchor), and calibration
@@ -112,7 +112,7 @@ fn parse_args() -> Args {
         seed: 20260603,
         thresholds: vec![0.75, 1.0, 1.25, 1.5, 2.0],
         sigma_mode: "fixed".to_string(),
-        drift_scale: 1, // rms
+        drift_scale: 1,          // rms
         lambda: LOG10_2.powi(2), // log10(2)^2 -> reproduces the classic SE
         robust: false,
         nu: 4.0,
@@ -128,16 +128,32 @@ fn parse_args() -> Args {
             "--anchor" => a.anchor = Some(it.next().unwrap_or_else(|| usage())),
             "--already-log" => a.already_log = true,
             "--min-support" => {
-                a.min_support = it.next().unwrap_or_else(|| usage()).parse().unwrap_or_else(|_| usage())
+                a.min_support = it
+                    .next()
+                    .unwrap_or_else(|| usage())
+                    .parse()
+                    .unwrap_or_else(|_| usage())
             }
             "--max-drift" => {
-                a.max_drift = it.next().unwrap_or_else(|| usage()).parse().unwrap_or_else(|_| usage())
+                a.max_drift = it
+                    .next()
+                    .unwrap_or_else(|| usage())
+                    .parse()
+                    .unwrap_or_else(|_| usage())
             }
             "--bootstrap" => {
-                a.bootstrap = it.next().unwrap_or_else(|| usage()).parse().unwrap_or_else(|_| usage())
+                a.bootstrap = it
+                    .next()
+                    .unwrap_or_else(|| usage())
+                    .parse()
+                    .unwrap_or_else(|_| usage())
             }
             "--seed" => {
-                a.seed = it.next().unwrap_or_else(|| usage()).parse().unwrap_or_else(|_| usage())
+                a.seed = it
+                    .next()
+                    .unwrap_or_else(|| usage())
+                    .parse()
+                    .unwrap_or_else(|_| usage())
             }
             "--thresholds" => {
                 a.thresholds = it
@@ -161,10 +177,20 @@ fn parse_args() -> Args {
                 }
             }
             "--lambda" => {
-                a.lambda = it.next().unwrap_or_else(|| usage()).parse().unwrap_or_else(|_| usage())
+                a.lambda = it
+                    .next()
+                    .unwrap_or_else(|| usage())
+                    .parse()
+                    .unwrap_or_else(|_| usage())
             }
             "--robust" => a.robust = true,
-            "--nu" => a.nu = it.next().unwrap_or_else(|| usage()).parse().unwrap_or_else(|_| usage()),
+            "--nu" => {
+                a.nu = it
+                    .next()
+                    .unwrap_or_else(|| usage())
+                    .parse()
+                    .unwrap_or_else(|_| usage())
+            }
             "--dashboard" => a.dashboard = Some(it.next().unwrap_or_else(|| usage())),
             "--trace" => a.trace = Some(it.next().unwrap_or_else(|| usage())),
             "-h" | "--help" => usage(),
@@ -264,8 +290,10 @@ fn read_phenotypes(path: &str, already_log: bool) -> Pheno {
             continue; // log10 of non-positive undefined
         }
         let logv = if already_log { raw } else { raw.log10() };
-        p.raw_value
-            .insert(sample.clone(), if already_log { 10f64.powf(raw) } else { raw });
+        p.raw_value.insert(
+            sample.clone(),
+            if already_log { 10f64.powf(raw) } else { raw },
+        );
         p.log_value.insert(sample.clone(), logv);
         if !p.counts.contains_key(&cohort) {
             p.cohorts.push(cohort.clone());
@@ -334,7 +362,7 @@ fn main() {
             _ => continue,
         };
         if ca == cb {
-            continue; // within-cohort: biology does not cancel cleanly
+            continue; // within-cohort: no cross-protocol offset to estimate
         }
         let (yi, yj) = match (ph.log_value.get(si), ph.log_value.get(sj)) {
             (Some(a), Some(b)) => (*a, *b),
@@ -509,9 +537,21 @@ fn main() {
         .map(|r| r.harm.log10())
         .collect();
     let cut = cutoff::estimate(&logharm, params.bootstrap, args.seed);
-    let fmt = |o: Option<f64>| o.map(|x| format!("{:.4}", x)).unwrap_or_else(|| "NA".into());
-    let fmt_mgl = |o: Option<f64>| o.map(|x| format!("{:.4}", 10f64.powf(x))).unwrap_or_else(|| "NA".into());
-    let nan_mgl = |x: f64| if x.is_finite() { format!("{:.4}", 10f64.powf(x)) } else { "NA".into() };
+    let fmt = |o: Option<f64>| {
+        o.map(|x| format!("{:.4}", x))
+            .unwrap_or_else(|| "NA".into())
+    };
+    let fmt_mgl = |o: Option<f64>| {
+        o.map(|x| format!("{:.4}", 10f64.powf(x)))
+            .unwrap_or_else(|| "NA".into())
+    };
+    let nan_mgl = |x: f64| {
+        if x.is_finite() {
+            format!("{:.4}", 10f64.powf(x))
+        } else {
+            "NA".into()
+        }
+    };
     let mut ct = String::from("method\tcutoff_log10\tcutoff_mgL\tlo95_mgL\thi95_mgL\n");
     ct.push_str(&format!(
         "kde_antimode\t{}\t{}\tNA\tNA\n",

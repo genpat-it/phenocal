@@ -81,3 +81,36 @@ pub fn quantile(sorted: &[f64], q: f64) -> f64 {
     let frac = pos - lo as f64;
     sorted[lo] * (1.0 - frac) + sorted[hi] * frac
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn solve_2x2_known() {
+        // [[2,1],[1,3]] x = [3,5] -> x = [0.8, 1.4]
+        let x = solve(&[2.0, 1.0, 1.0, 3.0], &[3.0, 5.0], 2).unwrap();
+        assert!((x[0] - 0.8).abs() < 1e-9);
+        assert!((x[1] - 1.4).abs() < 1e-9);
+    }
+
+    #[test]
+    fn solve_singular_is_none() {
+        // rank-1 matrix -> singular
+        assert!(solve(&[1.0, 2.0, 2.0, 4.0], &[1.0, 2.0], 2).is_none());
+    }
+
+    #[test]
+    fn median_odd_and_even() {
+        assert_eq!(median(&[3.0, 1.0, 2.0]), 2.0);
+        assert_eq!(median(&[1.0, 2.0, 3.0, 4.0]), 2.5);
+    }
+
+    #[test]
+    fn quantile_endpoints_and_interpolation() {
+        let s = [0.0, 1.0, 2.0, 3.0, 4.0];
+        assert_eq!(quantile(&s, 0.0), 0.0);
+        assert_eq!(quantile(&s, 1.0), 4.0);
+        assert_eq!(quantile(&s, 0.5), 2.0);
+    }
+}

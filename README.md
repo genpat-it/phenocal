@@ -17,7 +17,7 @@ Zero external dependencies; builds offline.
 
 Two near-clonal isolates from different cohorts share (approximately) the same
 biological phenotype, so the difference in their measured values estimates the
-difference in cohort/protocol offset — biology cancels. Offsets are fitted on a
+difference in cohort/protocol offset — the biology approximately cancels (exactly at zero genomic distance, approximately for near-clones). Offsets are fitted on a
 comparison graph by weighted least squares; one cohort is the anchor (δ=0).
 
 ## Build

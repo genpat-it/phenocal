@@ -136,14 +136,19 @@ fn bells_svg_doc(c: &Ctx) -> String {
     let yspan = h - top - bot;
     let xof = |x: f64| left + (x - lo) / (hi - lo) * xspan;
     let m = 240usize;
-    let grid: Vec<f64> = (0..m).map(|i| lo + (hi - lo) * i as f64 / (m as f64 - 1.0)).collect();
+    let grid: Vec<f64> = (0..m)
+        .map(|i| lo + (hi - lo) * i as f64 / (m as f64 - 1.0))
+        .collect();
     let ymax = c
         .edges
         .iter()
         .map(|e| npdf(e.delta, e.delta, e.se))
         .fold(1e-9, f64::max);
     let yof = |y: f64| top + yspan - (y / ymax) * yspan;
-    let palette = ["#2E86AB", "#E76F51", "#2A9D8F", "#7a5195", "#bc5090", "#ffa600", "#003f5c", "#58508d", "#ff6361"];
+    let palette = [
+        "#2E86AB", "#E76F51", "#2A9D8F", "#7a5195", "#bc5090", "#ffa600", "#003f5c", "#58508d",
+        "#ff6361",
+    ];
     let mut s = format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {w} {h}\" font-family=\"sans-serif\">\n<rect width=\"{w}\" height=\"{h}\" fill=\"white\"/>\n"
     );
@@ -165,9 +170,16 @@ fn bells_svg_doc(c: &Ctx) -> String {
         let col = palette[k % palette.len()];
         let mut p = String::from("<path d=\"");
         for (j, &x) in grid.iter().enumerate() {
-            p.push_str(&format!("{}{:.1} {:.1} ", if j == 0 { "M" } else { "L" }, xof(x), yof(npdf(x, e.delta, e.se))));
+            p.push_str(&format!(
+                "{}{:.1} {:.1} ",
+                if j == 0 { "M" } else { "L" },
+                xof(x),
+                yof(npdf(x, e.delta, e.se))
+            ));
         }
-        p.push_str(&format!("\" fill=\"none\" stroke=\"{col}\" stroke-width=\"1.8\" stroke-opacity=\"0.85\"/>\n"));
+        p.push_str(&format!(
+            "\" fill=\"none\" stroke=\"{col}\" stroke-width=\"1.8\" stroke-opacity=\"0.85\"/>\n"
+        ));
         s.push_str(&p);
     }
     // legend
@@ -223,7 +235,9 @@ fn cutoff_svg_doc(c: &Ctx) -> String {
         }
     };
     let m = 256usize;
-    let grid: Vec<f64> = (0..m).map(|i| lo + (hi - lo) * i as f64 / (m as f64 - 1.0)).collect();
+    let grid: Vec<f64> = (0..m)
+        .map(|i| lo + (hi - lo) * i as f64 / (m as f64 - 1.0))
+        .collect();
     let mut ymax = hist.iter().cloned().fold(0.0, f64::max);
     for &x in &grid {
         ymax = ymax.max(comp(x, 0)).max(comp(x, 1));
@@ -252,9 +266,16 @@ fn cutoff_svg_doc(c: &Ctx) -> String {
     for (which, col) in [(0u8, "#2A9D8F"), (1u8, "#E76F51")] {
         let mut p = String::from("<path d=\"");
         for (j, &x) in grid.iter().enumerate() {
-            p.push_str(&format!("{}{:.1} {:.1} ", if j == 0 { "M" } else { "L" }, xof(x), yof(comp(x, which))));
+            p.push_str(&format!(
+                "{}{:.1} {:.1} ",
+                if j == 0 { "M" } else { "L" },
+                xof(x),
+                yof(comp(x, which))
+            ));
         }
-        p.push_str(&format!("\" fill=\"none\" stroke=\"{col}\" stroke-width=\"2\"/>\n"));
+        p.push_str(&format!(
+            "\" fill=\"none\" stroke=\"{col}\" stroke-width=\"2\"/>\n"
+        ));
         s.push_str(&p);
     }
     let mut vline = |x: f64, col: &str, dash: &str| {
@@ -286,13 +307,43 @@ fn cutoff_svg_doc(c: &Ctx) -> String {
     // legend (two rows)
     let r1 = baseline + 36.0;
     let r2 = baseline + 56.0;
-    s.push_str(&leg_box(left, r1, "#cdd8df", "1", "histogram (harmonised log10-MIC)"));
-    s.push_str(&leg_line(left + 220.0, r1, "#2A9D8F", "", "sensitive component"));
-    s.push_str(&leg_line(left + 410.0, r1, "#E76F51", "", "tolerant component"));
-    s.push_str(&leg_line(left, r2, "#7a5195", "stroke-dasharray=\"4 3\"", "KDE antimode"));
+    s.push_str(&leg_box(
+        left,
+        r1,
+        "#cdd8df",
+        "1",
+        "histogram (harmonised log10-MIC)",
+    ));
+    s.push_str(&leg_line(
+        left + 220.0,
+        r1,
+        "#2A9D8F",
+        "",
+        "sensitive component",
+    ));
+    s.push_str(&leg_line(
+        left + 410.0,
+        r1,
+        "#E76F51",
+        "",
+        "tolerant component",
+    ));
+    s.push_str(&leg_line(
+        left,
+        r2,
+        "#7a5195",
+        "stroke-dasharray=\"4 3\"",
+        "KDE antimode",
+    ));
     s.push_str(&leg_line(left + 150.0, r2, "#2E86AB", "", "GMM crossover"));
     s.push_str(&leg_box(left + 300.0, r2, "#2E86AB", "0.2", "GMM 95% CI"));
-    s.push_str(&leg_line(left + 430.0, r2, "#000000", "stroke-dasharray=\"2 3\"", "1.25 convention"));
+    s.push_str(&leg_line(
+        left + 430.0,
+        r2,
+        "#000000",
+        "stroke-dasharray=\"2 3\"",
+        "1.25 convention",
+    ));
     s.push_str("</svg>\n");
     s
 }
@@ -315,7 +366,9 @@ fn inputs_section(s: &mut String, c: &Ctx) {
         c.min_support, c.max_drift, c.lambda, c.sigma_mode, c.bootstrap
     ));
     s.push_str("The measurement resolution $\\sigma_c$ is the median spacing of each cohort's MIC grid (in $\\log_{10}$); it recovers $\\log_{10}2\\approx0.301$ for two-fold cohorts.\n\n");
-    s.push_str("| Cohort | $n$ | $\\sigma_c$ (log10) | $\\sigma_c$ (dilutions) |\n|---|---:|---:|---:|\n");
+    s.push_str(
+        "| Cohort | $n$ | $\\sigma_c$ (log10) | $\\sigma_c$ (dilutions) |\n|---|---:|---:|---:|\n",
+    );
     for (i, name) in c.cohorts.iter().enumerate() {
         let sig = c.sigma.get(i).copied().unwrap_or(0.0);
         s.push_str(&format!(
@@ -336,7 +389,7 @@ fn model_section(s: &mut String) {
     s.push_str("$$ y_{ic}=\\mu_i+\\delta_c+\\varepsilon_{ic} $$\n\n");
     s.push_str("with $\\mu_i$ the unknown true biology of genome $i$, $\\delta_c$ the cohort/protocol offset (what we estimate), and $\\varepsilon_{ic}$ random measurement noise.\n\n");
     s.push_str("> **Tip — the noise is mean-zero.** $\\mathbb{E}[\\varepsilon_{ic}]=0$ by construction: any *constant* bias of a lab is absorbed into $\\delta_c$, so what is left in $\\varepsilon$ has no preferred direction. If $\\varepsilon$ is also symmetric, its *median* is $0$ too — which is what makes the median estimator below unbiased.\n\n");
-    s.push_str("For two near-clonal isolates ($\\mu_i\\approx\\mu_j$) in cohorts $a,b$ the biology cancels:\n\n");
+    s.push_str("For two near-clonal isolates ($\\mu_i\\approx\\mu_j$) in cohorts $a,b$ the biology approximately cancels (exactly when $\\mu_i=\\mu_j$):\n\n");
     s.push_str("$$ y_{ia}-y_{jb}=\\underbrace{(\\mu_i-\\mu_j)}_{\\approx 0}+(\\delta_a-\\delta_b)+(\\varepsilon_{ia}-\\varepsilon_{jb}) $$\n\n");
     s.push_str("The **median over many twin pairs** of an edge kills the noise, leaving $\\Delta_{ab}\\approx\\delta_a-\\delta_b$.\n\n");
 }
@@ -394,10 +447,16 @@ fn edges_section(s: &mut String, c: &Ctx) {
         }
         s.push('\n');
         if cand.len() > shown {
-            s.push_str(&format!("*({} further pairs not shown.)*\n\n", cand.len() - shown));
+            s.push_str(&format!(
+                "*({} further pairs not shown.)*\n\n",
+                cand.len() - shown
+            ));
         }
 
-        let (sa, sb) = (c.sigma.get(e.a).copied().unwrap_or(0.0), c.sigma.get(e.b).copied().unwrap_or(0.0));
+        let (sa, sb) = (
+            c.sigma.get(e.a).copied().unwrap_or(0.0),
+            c.sigma.get(e.b).copied().unwrap_or(0.0),
+        );
         let res = ((sa * sa + sb * sb) / 2.0).sqrt().max(1e-9);
         s.push_str(&format!(
             "**Adaptive $\\tau$ selection.** Widen $\\tau$ from $d_{{\\min}}$ to the smallest distance with $\\ge n_{{\\min}}={}$ pairs **and** drift $\\le\\kappa\\,\\bar\\sigma_{{ab}}$. Here $\\bar\\sigma_{{ab}}=\\sqrt{{(\\sigma_a^2+\\sigma_b^2)/2}}={:.3}$ and $\\kappa={}$, so the drift (last column, in units of $\\bar\\sigma_{{ab}}$) must stay $\\le{}$:\n\n",
@@ -480,7 +539,13 @@ fn solve_section(s: &mut String, c: &Ctx) {
         }
     }
     s.push_str("Free cohorts (order): ");
-    s.push_str(&free.iter().map(|&i| code(&c.cohorts[i])).collect::<Vec<_>>().join(", "));
+    s.push_str(
+        &free
+            .iter()
+            .map(|&i| code(&c.cohorts[i]))
+            .collect::<Vec<_>>()
+            .join(", "),
+    );
     s.push_str(".\n\n");
     s.push_str("$$ A^{\\top}WA=\\begin{bmatrix}\n");
     for i in 0..k {
@@ -542,7 +607,9 @@ fn cutoff_section(s: &mut String, c: &Ctx) {
     s.push_str("## 7. Data-driven cutoff (harmonised scale)\n\n");
     s.push_str("Two methods on the harmonised $\\log_{10}$-MIC values $\\{x_i\\}$; they bracket the cutoff.\n\n");
 
-    s.push_str("**(a) KDE antimode (non-parametric).** Estimate the density with a Gaussian kernel,\n\n");
+    s.push_str(
+        "**(a) KDE antimode (non-parametric).** Estimate the density with a Gaussian kernel,\n\n",
+    );
     s.push_str("$$ \\hat f(x)=\\frac{1}{n h}\\sum_{i=1}^{n} K\\!\\left(\\frac{x-x_i}{h}\\right),\\qquad K(u)=\\frac{1}{\\sqrt{2\\pi}}e^{-u^2/2},\\qquad h=1.06\\,\\hat\\sigma\\,n^{-1/5}\\ (\\text{Silverman}), $$\n\n");
     s.push_str("then take the **antimode**: the local minimum of $\\hat f$ in the valley between the two modes. No shape assumption; depends on the bandwidth $h$.\n\n");
 
@@ -554,8 +621,17 @@ fn cutoff_section(s: &mut String, c: &Ctx) {
     s.push_str("$$ w_1\\,\\mathcal{N}(x^{*}\\mid\\mu_1,\\sigma_1^2)=w_2\\,\\mathcal{N}(x^{*}\\mid\\mu_2,\\sigma_2^2). $$\n\n");
     s.push_str("A 95% interval is obtained by **bootstrap**: resample $\\{x_i\\}$ with replacement, refit the mixture, recompute $x^{*}$, $B$ times, and take the 2.5/97.5 percentiles.\n\n");
     s.push_str("On this run:\n\n");
-    let mgl = |o: Option<f64>| o.map(|x| format!("{:.3}", fold(x))).unwrap_or_else(|| "n/a".into());
-    let ci = |x: f64| if x.is_finite() { format!("{:.3}", fold(x)) } else { "n/a".into() };
+    let mgl = |o: Option<f64>| {
+        o.map(|x| format!("{:.3}", fold(x)))
+            .unwrap_or_else(|| "n/a".into())
+    };
+    let ci = |x: f64| {
+        if x.is_finite() {
+            format!("{:.3}", fold(x))
+        } else {
+            "n/a".into()
+        }
+    };
     s.push_str(&format!(
         "Mixture components: sensitive ≈ {:.2} mg/L (weight {:.2}); tolerant ≈ {:.2} mg/L (weight {:.2}).\n\n",
         fold(cut.comp_lo.1), cut.comp_lo.0, fold(cut.comp_hi.1), cut.comp_hi.0

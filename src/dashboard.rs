@@ -75,9 +75,25 @@ pub fn render(c: &Ctx) -> String {
     card(&mut h, "Anchor (&delta;=0)", &esc(c.anchor_name));
     card(&mut h, "Cross-cohort pairs", &format!("{}", c.n_cross));
     card(&mut h, "Edges", &format!("{}", c.edges.len()));
-    card(&mut h, "Residual RMSE", &format!("{:.3} log<sub>10</sub><br><span class=\"dim\">{:.2} dilutions</span>", c.sol.rmse, c.sol.rmse / LOG10_2));
-    let noise = if c.robust { format!("Student-t(&nu;={})", c.nu) } else { "Normal".to_string() };
-    card(&mut h, "Bootstrap / noise", &format!("B={}<br><span class=\"dim\">{}</span>", c.bootstrap, noise));
+    card(
+        &mut h,
+        "Residual RMSE",
+        &format!(
+            "{:.3} log<sub>10</sub><br><span class=\"dim\">{:.2} dilutions</span>",
+            c.sol.rmse,
+            c.sol.rmse / LOG10_2
+        ),
+    );
+    let noise = if c.robust {
+        format!("Student-t(&nu;={})", c.nu)
+    } else {
+        "Normal".to_string()
+    };
+    card(
+        &mut h,
+        "Bootstrap / noise",
+        &format!("B={}<br><span class=\"dim\">{}</span>", c.bootstrap, noise),
+    );
     h.push_str("</section>\n");
 
     h.push_str(&format!(
@@ -134,7 +150,9 @@ pub fn render(c: &Ctx) -> String {
     // ---- per-isolate labels ----
     h.push_str("<h2>Per-isolate harmonised values &amp; probabilities</h2>\n");
     h.push_str("<p class=\"note\">P(tolerant) = fraction of bootstrap calibrations in which the harmonised value clears each threshold. Type to filter by sample or cohort.</p>\n");
-    h.push_str("<input id=\"flt\" placeholder=\"filter sample or cohort\u{2026}\" oninput=\"filt()\">\n");
+    h.push_str(
+        "<input id=\"flt\" placeholder=\"filter sample or cohort\u{2026}\" oninput=\"filt()\">\n",
+    );
     h.push_str("<div class=\"scroll\"><table class=\"tbl\" id=\"isotbl\"><thead><tr><th>sample</th><th>cohort</th><th>raw</th><th>harmonised</th>");
     for t in c.thresholds {
         h.push_str(&format!("<th>P&ge;{}</th>", trim(*t)));
@@ -144,10 +162,19 @@ pub fn render(c: &Ctx) -> String {
         let cohort = &c.cohorts[iso.cohort];
         h.push_str(&format!(
             "<tr><td>{}</td><td>{}</td><td>{:.3}</td><td>{:.3}</td>",
-            esc(&iso.sample), esc(cohort), iso.raw, iso.harm
+            esc(&iso.sample),
+            esc(cohort),
+            iso.raw,
+            iso.harm
         ));
         for p in &iso.probs {
-            let cls = if *p >= 0.5 { " class=\"hot\"" } else if *p <= 0.05 { " class=\"cold\"" } else { " class=\"warm\"" };
+            let cls = if *p >= 0.5 {
+                " class=\"hot\""
+            } else if *p <= 0.05 {
+                " class=\"cold\""
+            } else {
+                " class=\"warm\""
+            };
             h.push_str(&format!("<td{}>{:.2}</td>", cls, p));
         }
         h.push_str("</tr>\n");
@@ -214,7 +241,10 @@ fn graph_svg(h: &mut String, c: &Ctx) {
             "<circle cx=\"{x:.1}\" cy=\"{y:.1}\" r=\"30\" fill=\"{fillc}\"/>\
              <text x=\"{x:.1}\" y=\"{:.1}\" class=\"nn\">{}</text>\
              <text x=\"{x:.1}\" y=\"{:.1}\" class=\"nc\">n={}</text>\n",
-            y - 2.0, esc(name), y + 12.0, cnt
+            y - 2.0,
+            esc(name),
+            y + 12.0,
+            cnt
         ));
     }
     h.push_str("</svg>\n");
@@ -319,17 +349,26 @@ fn beforeafter_svg(h: &mut String, c: &Ctx) {
     // x ticks (fold of MIC)
     for &f in &[0.1f64, 0.3, 1.0, 3.0, 10.0, 30.0] {
         let d = f.log10();
-        if d < lo || d > hi { continue; }
+        if d < lo || d > hi {
+            continue;
+        }
         let x = xof(d);
         h.push_str(&format!(
             "<line x1=\"{x:.1}\" y1=\"{top:.1}\" x2=\"{x:.1}\" y2=\"{:.1}\" stroke=\"#eef2f4\"/>\
              <text x=\"{x:.1}\" y=\"{:.1}\" class=\"ax\">{}</text>\n",
-            top + row * (n as f64), top + row * (n as f64) + 14.0, trim(f)
+            top + row * (n as f64),
+            top + row * (n as f64) + 14.0,
+            trim(f)
         ));
     }
     for i in 0..n {
         let y = top + row * (i as f64) + row / 2.0;
-        h.push_str(&format!("<text x=\"{:.1}\" y=\"{:.1}\" class=\"fl\">{}</text>\n", left - 8.0, y + 4.0, esc(&c.cohorts[i])));
+        h.push_str(&format!(
+            "<text x=\"{:.1}\" y=\"{:.1}\" class=\"fl\">{}</text>\n",
+            left - 8.0,
+            y + 4.0,
+            esc(&c.cohorts[i])
+        ));
         // raw (hollow) above, harmonised (solid) below
         whisker(h, &mut raw[i], xof, y - 7.0, "#9bb8c9", false);
         whisker(h, &mut harm[i], xof, y + 7.0, "#2E86AB", true);
@@ -343,7 +382,14 @@ fn beforeafter_svg(h: &mut String, c: &Ctx) {
     h.push_str("</svg>\n");
 }
 
-fn whisker<F: Fn(f64) -> f64>(h: &mut String, v: &mut [f64], xof: F, y: f64, col: &str, solid: bool) {
+fn whisker<F: Fn(f64) -> f64>(
+    h: &mut String,
+    v: &mut [f64],
+    xof: F,
+    y: f64,
+    col: &str,
+    solid: bool,
+) {
     if v.is_empty() {
         return;
     }
@@ -356,7 +402,9 @@ fn whisker<F: Fn(f64) -> f64>(h: &mut String, v: &mut [f64], xof: F, y: f64, col
         "<line x1=\"{x1:.1}\" y1=\"{y:.1}\" x2=\"{x3:.1}\" y2=\"{y:.1}\" stroke=\"{col}\" stroke-width=\"2\"/>",
     ));
     if solid {
-        h.push_str(&format!("<circle cx=\"{xm:.1}\" cy=\"{y:.1}\" r=\"4\" fill=\"{col}\"/>"));
+        h.push_str(&format!(
+            "<circle cx=\"{xm:.1}\" cy=\"{y:.1}\" r=\"4\" fill=\"{col}\"/>"
+        ));
     } else {
         h.push_str(&format!("<circle cx=\"{xm:.1}\" cy=\"{y:.1}\" r=\"4\" fill=\"#fff\" stroke=\"{col}\" stroke-width=\"2\"/>"));
     }
@@ -400,7 +448,9 @@ fn cutoff_svg(h: &mut String, c: &Ctx) {
         }
     };
     let m = 256usize;
-    let grid: Vec<f64> = (0..m).map(|i| lo + (hi - lo) * i as f64 / (m as f64 - 1.0)).collect();
+    let grid: Vec<f64> = (0..m)
+        .map(|i| lo + (hi - lo) * i as f64 / (m as f64 - 1.0))
+        .collect();
     let mut ymax = hist.iter().cloned().fold(0.0, f64::max);
     for &x in &grid {
         ymax = ymax.max(comp(x, 0)).max(comp(x, 1));
@@ -438,7 +488,9 @@ fn cutoff_svg(h: &mut String, c: &Ctx) {
                 yof(comp(x, which))
             ));
         }
-        h.push_str(&format!("\" fill=\"none\" stroke=\"{col}\" stroke-width=\"2\"/>\n"));
+        h.push_str(&format!(
+            "\" fill=\"none\" stroke=\"{col}\" stroke-width=\"2\"/>\n"
+        ));
     };
     path(0, "#2A9D8F");
     path(1, "#E76F51");
@@ -471,8 +523,17 @@ fn cutoff_svg(h: &mut String, c: &Ctx) {
         ));
     }
     h.push_str("</svg>\n");
-    let mgl = |o: Option<f64>| o.map(|x| format!("{:.2}", 10f64.powf(x))).unwrap_or_else(|| "n/a".into());
-    let ci = |x: f64| if x.is_finite() { format!("{:.2}", 10f64.powf(x)) } else { "n/a".into() };
+    let mgl = |o: Option<f64>| {
+        o.map(|x| format!("{:.2}", 10f64.powf(x)))
+            .unwrap_or_else(|| "n/a".into())
+    };
+    let ci = |x: f64| {
+        if x.is_finite() {
+            format!("{:.2}", 10f64.powf(x))
+        } else {
+            "n/a".into()
+        }
+    };
     h.push_str(&format!(
         "<p class=\"note\"><span style=\"color:#2A9D8F\">&#9632;</span> sensitive comp. ({:.2} mg/L) &nbsp; \
          <span style=\"color:#E76F51\">&#9632;</span> tolerant comp. ({:.2} mg/L) &nbsp; \
@@ -523,7 +584,11 @@ fn edge_block(h: &mut String, c: &Ctx, e: &Edge) {
 fn trim(f: f64) -> String {
     let s = format!("{:.2}", f);
     let s = s.trim_end_matches('0').trim_end_matches('.').to_string();
-    if s.is_empty() { "0".to_string() } else { s }
+    if s.is_empty() {
+        "0".to_string()
+    } else {
+        s
+    }
 }
 
 const STYLE: &str = r#"<style>
