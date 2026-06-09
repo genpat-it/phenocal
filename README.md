@@ -137,9 +137,18 @@ paper). A connected graph is required.
 
 ## Validation
 
-On the *Listeria monocytogenes* BC dataset (2099 isolates, 5 cohorts, cgMLST
-pairs), `phenocal` reproduces the paper's Table 2: Kragh 0.92×, Palma ~1.17×,
-Cooper ~5.0×, He ~11.4× (anchor Ivanova), weighted residual RMSE ≈ 0.10 log10.
+On the *Listeria monocytogenes* benzalkonium-chloride dataset (2099 isolates,
+5 cohorts, cgMLST pairs), `phenocal` reproduces the paper's Table 2: Kragh 0.92×,
+Palma ~1.17×, Cooper ~5.0×, He ~11.4× (anchor Ivanova), weighted residual
+RMSE ≈ 0.10 log10.
+
+The five source cohorts:
+
+- **Cooper** — Cooper et al. (2021), *J. Food Prot.* 84:389–398. doi:10.4315/JFP-20-328
+- **He** — He et al. (2022), *Appl. Environ. Microbiol.* 88:e01269-22. doi:10.1128/aem.01269-22
+- **Palma** — Palma et al. (2022), *Food Microbiol.* 106:103757. doi:10.1016/j.fm.2021.103757
+- **Kragh** — Kragh et al. (2024), *Food Control* 158:110244. doi:10.1016/j.foodcont.2023.110244
+- **Ivanova** (anchor) — Ivanova et al. (2025), *Appl. Environ. Microbiol.* 91:e01829-24. doi:10.1128/aem.01829-24
 
 ## Citation
 
