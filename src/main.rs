@@ -525,8 +525,8 @@ fn main() {
         fmt_mgl(cut.gmm_crossover),
         nan_mgl(cut.gmm_lo),
         nan_mgl(cut.gmm_hi),
-        10f64.powf(cut.mu_sensitive),
-        10f64.powf(cut.mu_tolerant)
+        10f64.powf(cut.comp_lo.1),
+        10f64.powf(cut.comp_hi.1)
     );
 
     // ---- summary ----
@@ -584,6 +584,8 @@ fn main() {
             n_cross,
             thresholds: &args.thresholds,
             isolates: &iso_rows,
+            cutoff: &cut,
+            logharm: &logharm,
         };
         let html = dashboard::render(&ctx);
         write(path, &html);

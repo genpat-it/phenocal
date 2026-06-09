@@ -39,6 +39,8 @@ pub struct Ctx<'a> {
     pub n_cross: usize,
     pub thresholds: &'a [f64],
     pub isolates: &'a [Iso],
+    pub cutoff: &'a crate::cutoff::Cutoff,
+    pub logharm: &'a [f64], // harmonised log10-MIC values, for the cutoff panel
 }
 
 fn esc(s: &str) -> String {
@@ -113,6 +115,11 @@ pub fn render(c: &Ctx) -> String {
     h.push_str("<h2>Before &rarr; after harmonisation</h2>\n");
     h.push_str("<p class=\"note\">Per cohort: median and inter-quartile range on the log<sub>10</sub> scale. Raw (hollow) vs harmonised (solid). Harmonisation should align the cohorts.</p>\n");
     beforeafter_svg(&mut h, c);
+
+    // ---- data-driven cutoff ----
+    h.push_str("<h2>Data-driven cutoff (harmonised scale)</h2>\n");
+    h.push_str("<p class=\"note\">Histogram of harmonised log<sub>10</sub>-MIC, the two fitted mixture components (sensitive/tolerant), the KDE antimode and the GMM crossover (with bootstrap 95% interval). The cutoff is treated as uncertain &mdash; these two estimates bracket it.</p>\n");
+    cutoff_svg(&mut h, c);
 
     // ---- per-edge detail (the miraculous debug) ----
     h.push_str("<h2>Per-edge detail &mdash; every twin and its log-ratio</h2>\n");
@@ -351,6 +358,131 @@ fn whisker<F: Fn(f64) -> f64>(h: &mut String, v: &mut [f64], xof: F, y: f64, col
         h.push_str(&format!("<circle cx=\"{xm:.1}\" cy=\"{y:.1}\" r=\"4\" fill=\"#fff\" stroke=\"{col}\" stroke-width=\"2\"/>"));
     }
     h.push('\n');
+}
+
+/// Cutoff panel: histogram of harmonised log10-MIC + the two mixture components,
+/// with the KDE antimode and GMM crossover (and its bootstrap CI band) marked.
+fn cutoff_svg(h: &mut String, c: &Ctx) {
+    let lv = c.logharm;
+    if lv.len() < 10 {
+        return;
+    }
+    let cut = c.cutoff;
+    let mut lo = lv.iter().cloned().fold(f64::INFINITY, f64::min) - 0.1;
+    let mut hi = lv.iter().cloned().fold(f64::NEG_INFINITY, f64::max) + 0.1;
+    if lo >= hi {
+        lo = -0.5;
+        hi = 1.5;
+    }
+    let (w, ht, top, left, right, bot) = (780.0, 340.0, 18.0, 40.0, 20.0, 34.0);
+    let xspan = w - left - right;
+    let yspan = ht - top - bot;
+    let xof = |x: f64| left + (x - lo) / (hi - lo) * xspan;
+    let nb = 32usize;
+    let bw = (hi - lo) / nb as f64;
+    let mut hist = vec![0f64; nb];
+    for &x in lv {
+        let b = (((x - lo) / bw) as usize).min(nb - 1);
+        hist[b] += 1.0;
+    }
+    let n = lv.len() as f64;
+    for v in hist.iter_mut() {
+        *v /= n * bw;
+    }
+    let comp = |x: f64, which: u8| {
+        if which == 0 {
+            crate::cutoff::component_density(x, cut.comp_lo)
+        } else {
+            crate::cutoff::component_density(x, cut.comp_hi)
+        }
+    };
+    let m = 256usize;
+    let grid: Vec<f64> = (0..m).map(|i| lo + (hi - lo) * i as f64 / (m as f64 - 1.0)).collect();
+    let mut ymax = hist.iter().cloned().fold(0.0, f64::max);
+    for &x in &grid {
+        ymax = ymax.max(comp(x, 0)).max(comp(x, 1));
+    }
+    if ymax <= 0.0 {
+        ymax = 1.0;
+    }
+    let yof = |y: f64| top + yspan - (y / ymax) * yspan;
+    let baseline = top + yspan;
+
+    h.push_str(&format!("<svg viewBox=\"0 0 {w} {ht}\" class=\"fig\">\n"));
+    if cut.gmm_lo.is_finite() && cut.gmm_hi.is_finite() {
+        let (x1, x2) = (xof(cut.gmm_lo), xof(cut.gmm_hi));
+        h.push_str(&format!(
+            "<rect x=\"{:.1}\" y=\"{top:.1}\" width=\"{:.1}\" height=\"{yspan:.1}\" fill=\"#2E86AB\" fill-opacity=\"0.10\"/>\n",
+            x1, (x2 - x1).max(0.0)
+        ));
+    }
+    for (i, &d) in hist.iter().enumerate() {
+        let px = xof(lo + i as f64 * bw);
+        let pw = (xof(lo + (i as f64 + 1.0) * bw) - px).max(0.5);
+        let py = yof(d);
+        h.push_str(&format!(
+            "<rect x=\"{px:.1}\" y=\"{py:.1}\" width=\"{pw:.1}\" height=\"{:.1}\" fill=\"#cdd8df\"/>\n",
+            baseline - py
+        ));
+    }
+    let mut path = |which: u8, col: &str| {
+        h.push_str("<path d=\"");
+        for (k, &x) in grid.iter().enumerate() {
+            h.push_str(&format!(
+                "{}{:.1} {:.1} ",
+                if k == 0 { "M" } else { "L" },
+                xof(x),
+                yof(comp(x, which))
+            ));
+        }
+        h.push_str(&format!("\" fill=\"none\" stroke=\"{col}\" stroke-width=\"2\"/>\n"));
+    };
+    path(0, "#2A9D8F");
+    path(1, "#E76F51");
+    let mut vline = |x: f64, col: &str, dash: &str| {
+        h.push_str(&format!(
+            "<line x1=\"{0:.1}\" y1=\"{top:.1}\" x2=\"{0:.1}\" y2=\"{baseline:.1}\" stroke=\"{col}\" stroke-width=\"2\" {dash}/>\n",
+            xof(x)
+        ));
+    };
+    if let Some(a) = cut.kde_antimode {
+        vline(a, "#7a5195", "stroke-dasharray=\"4 3\"");
+    }
+    if let Some(g) = cut.gmm_crossover {
+        vline(g, "#2E86AB", "");
+    }
+    let conv = 1.25f64.log10();
+    if conv > lo && conv < hi {
+        vline(conv, "#000000", "stroke-dasharray=\"2 3\"");
+    }
+    for &f in &[0.3f64, 0.6, 1.25, 2.5, 5.0, 10.0] {
+        let x = f.log10();
+        if x < lo || x > hi {
+            continue;
+        }
+        h.push_str(&format!(
+            "<text x=\"{:.1}\" y=\"{:.1}\" class=\"ax\">{}</text>\n",
+            xof(x),
+            baseline + 14.0,
+            trim(f)
+        ));
+    }
+    h.push_str("</svg>\n");
+    let mgl = |o: Option<f64>| o.map(|x| format!("{:.2}", 10f64.powf(x))).unwrap_or_else(|| "n/a".into());
+    let ci = |x: f64| if x.is_finite() { format!("{:.2}", 10f64.powf(x)) } else { "n/a".into() };
+    h.push_str(&format!(
+        "<p class=\"note\"><span style=\"color:#2A9D8F\">&#9632;</span> sensitive comp. ({:.2} mg/L) &nbsp; \
+         <span style=\"color:#E76F51\">&#9632;</span> tolerant comp. ({:.2} mg/L) &nbsp; \
+         <span style=\"color:#7a5195\">&#8942;</span> KDE antimode {} mg/L &nbsp; \
+         <span style=\"color:#2E86AB\">&#9474;</span> GMM crossover {} mg/L [{}, {}] &nbsp; \
+         dashed black = 1.25 convention.</p>\n",
+        10f64.powf(cut.comp_lo.1),
+        10f64.powf(cut.comp_hi.1),
+        mgl(cut.kde_antimode),
+        mgl(cut.gmm_crossover),
+        ci(cut.gmm_lo),
+        ci(cut.gmm_hi)
+    ));
 }
 
 /// One collapsible edge with the full pair table.

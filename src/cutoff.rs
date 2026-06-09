@@ -142,8 +142,8 @@ pub struct Cutoff {
     pub gmm_crossover: Option<f64>,
     pub gmm_lo: f64,
     pub gmm_hi: f64,
-    pub mu_sensitive: f64,
-    pub mu_tolerant: f64,
+    pub comp_lo: (f64, f64, f64), // (weight, mu, sd) of the sensitive component
+    pub comp_hi: (f64, f64, f64), // (weight, mu, sd) of the tolerant component
 }
 
 /// Estimate the cutoff from harmonised log10-MIC values.
@@ -174,7 +174,12 @@ pub fn estimate(logvals: &[f64], bootstrap: usize, seed: u64) -> Cutoff {
         gmm_crossover: xc,
         gmm_lo: lo,
         gmm_hi: hi,
-        mu_sensitive: c1.1,
-        mu_tolerant: c2.1,
+        comp_lo: c1,
+        comp_hi: c2,
     }
+}
+
+/// One weighted component density w·N(x|mu,sd) for plotting.
+pub fn component_density(x: f64, c: (f64, f64, f64)) -> f64 {
+    c.0 * npdf(x, c.1, c.2)
 }
