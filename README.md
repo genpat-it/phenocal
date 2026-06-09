@@ -3,8 +3,9 @@
 **Genome-anchored calibration of a continuous phenotype across cohorts/batches,
 with uncertainty-propagated probabilistic labels.**
 
-`phenocal` implements the method of de Ruvo et al. (*Genome-Anchored
-Probabilistic MIC Labels*). It is organism-, phenotype-, and schema-agnostic:
+`phenocal` implements the genome-anchored MIC calibration method developed by
+de Ruvo, Castelli, Di Pasquale and Radomski (*Genome-Anchored Probabilistic MIC
+Labels*; see Citation below). It is organism-, phenotype-, and schema-agnostic:
 given a continuous phenotype, a cohort/batch label per sample, and any genomic
 distance that can flag near-clonal pairs, it estimates one calibration offset
 per cohort and propagates calibration uncertainty into per-cohort credible

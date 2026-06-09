@@ -1,7 +1,7 @@
 //! phenocal — genome-anchored calibration of a continuous phenotype across
 //! cohorts/batches, with uncertainty-propagated probabilistic labels.
 //!
-//! Method (Algorithm 1 of de Ruvo et al.): near-clonal cross-cohort pairs are
+//! Method (Algorithm 1 of de Ruvo, Castelli, Di Pasquale & Radomski): near-clonal cross-cohort pairs are
 //! genomic natural controls; a shared genome cancels the biological component,
 //! so the phenotype difference between matched isolates estimates the
 //! cohort/protocol offset difference. Offsets are fitted on a comparison graph
