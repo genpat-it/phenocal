@@ -479,7 +479,20 @@ fn bootstrap_section(s: &mut String, c: &Ctx) {
 fn cutoff_section(s: &mut String, c: &Ctx) {
     let cut = c.cutoff;
     s.push_str("## 7. Data-driven cutoff (harmonised scale)\n\n");
-    s.push_str("A 2-component Gaussian mixture is fitted to the harmonised $\\log_{10}$-MIC; the KDE antimode (density valley) and the mixture crossover (Bayes-optimal boundary) bracket the cutoff.\n\n");
+    s.push_str("Two methods on the harmonised $\\log_{10}$-MIC values $\\{x_i\\}$; they bracket the cutoff.\n\n");
+
+    s.push_str("**(a) KDE antimode (non-parametric).** Estimate the density with a Gaussian kernel,\n\n");
+    s.push_str("$$ \\hat f(x)=\\frac{1}{n h}\\sum_{i=1}^{n} K\\!\\left(\\frac{x-x_i}{h}\\right),\\qquad K(u)=\\frac{1}{\\sqrt{2\\pi}}e^{-u^2/2},\\qquad h=1.06\\,\\hat\\sigma\\,n^{-1/5}\\ (\\text{Silverman}), $$\n\n");
+    s.push_str("then take the **antimode**: the local minimum of $\\hat f$ in the valley between the two modes. No shape assumption; depends on the bandwidth $h$.\n\n");
+
+    s.push_str("**(b) GMM crossover (parametric).** Fit a 2-component Gaussian mixture by EM,\n\n");
+    s.push_str("$$ p(x)=w_1\\,\\mathcal{N}(x\\mid\\mu_1,\\sigma_1^2)+w_2\\,\\mathcal{N}(x\\mid\\mu_2,\\sigma_2^2). $$\n\n");
+    s.push_str("EM iterates the responsibilities (E-step) and the weighted moments (M-step):\n\n");
+    s.push_str("$$ r_k(x_i)=\\frac{w_k\\,\\mathcal{N}(x_i\\mid\\mu_k,\\sigma_k^2)}{\\sum_{l}w_l\\,\\mathcal{N}(x_i\\mid\\mu_l,\\sigma_l^2)},\\quad \\mu_k=\\frac{\\sum_i r_k(x_i)\\,x_i}{\\sum_i r_k(x_i)},\\quad \\sigma_k^2=\\frac{\\sum_i r_k(x_i)(x_i-\\mu_k)^2}{\\sum_i r_k(x_i)},\\quad w_k=\\frac{\\sum_i r_k(x_i)}{n}. $$\n\n");
+    s.push_str("The **crossover** is the $x^\\*\\in(\\mu_1,\\mu_2)$ where the two weighted components are equal — the Bayes-optimal boundary (posterior $=1/2$):\n\n");
+    s.push_str("$$ w_1\\,\\mathcal{N}(x^\\*\\mid\\mu_1,\\sigma_1^2)=w_2\\,\\mathcal{N}(x^\\*\\mid\\mu_2,\\sigma_2^2). $$\n\n");
+    s.push_str("A 95% interval is obtained by **bootstrap**: resample $\\{x_i\\}$ with replacement, refit the mixture, recompute $x^\\*$, $B$ times, and take the 2.5/97.5 percentiles.\n\n");
+    s.push_str("On this run:\n\n");
     let mgl = |o: Option<f64>| o.map(|x| format!("{:.3}", fold(x))).unwrap_or_else(|| "n/a".into());
     let ci = |x: f64| if x.is_finite() { format!("{:.3}", fold(x)) } else { "n/a".into() };
     s.push_str(&format!(
