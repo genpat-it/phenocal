@@ -59,7 +59,7 @@ fn render(c: &Ctx, bells_img: &str, cutoff_img: &str) -> String {
     solve_section(&mut s, c);
     bootstrap_section(&mut s, c);
     s.push_str(&format!(
-        "Per-edge perturbation bells $\\mathcal{{N}}(\\Delta_{{ab}},SE_{{ab}}^2)$ the bootstrap samples from (precise edges are tall and narrow, noisy ones short and wide):\n\n![per-edge bootstrap bells]({})\n\n",
+        "Each edge contributes the Gaussian $\\mathcal{{N}}(\\Delta_{{ab}},SE_{{ab}}^2)$ the bootstrap samples from. In the figure legend each bell is labelled `a–b (fold, w)`, with **center** $=10^{{\\Delta_{{ab}}}}$ (the fold) and **width/height** set by $w_{{ab}}=1/SE_{{ab}}^2$ — exactly the `fold` and `weight` columns computed per edge in §4. A precise edge (many close twins $\\Rightarrow$ small $SE$, large $w$) is **tall and narrow**; a noisy one (few or distant twins $\\Rightarrow$ large $SE$, small $w$) is **short and wide** and barely moves the fit.\n\n![per-edge bootstrap bells]({})\n\n",
         bells_img
     ));
     cutoff_section(&mut s, c);
