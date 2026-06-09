@@ -16,6 +16,7 @@ mod cutoff;
 mod dashboard;
 mod linalg;
 mod rng;
+mod trace;
 
 use calib::{build_edges, fit, Pair, Params};
 use std::collections::HashMap;
@@ -40,6 +41,7 @@ struct Args {
     robust: bool,
     nu: f64,
     dashboard: Option<String>,
+    trace: Option<String>,
 }
 
 fn usage() -> ! {
@@ -87,6 +89,10 @@ OPTIONS:
                           edge with the median highlighted, offsets + credible
                           intervals, before/after distributions, per-isolate
                           probabilities). Opens in any browser, no dependencies.
+    --trace <FILE>        Also write a step-by-step mathematical trace of the run
+                          in Markdown (inputs, per-edge twins + tau selection,
+                          WLS normal-equation matrices, bootstrap CIs, cutoff).
+                          Renders directly on GitHub; no compilation needed.
     -h, --help            Show this help
 "
     );
@@ -111,6 +117,7 @@ fn parse_args() -> Args {
         robust: false,
         nu: 4.0,
         dashboard: None,
+        trace: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -159,6 +166,7 @@ fn parse_args() -> Args {
             "--robust" => a.robust = true,
             "--nu" => a.nu = it.next().unwrap_or_else(|| usage()).parse().unwrap_or_else(|_| usage()),
             "--dashboard" => a.dashboard = Some(it.next().unwrap_or_else(|| usage())),
+            "--trace" => a.trace = Some(it.next().unwrap_or_else(|| usage())),
             "-h" | "--help" => usage(),
             _ => {
                 eprintln!("Unknown argument: {arg}");
@@ -564,8 +572,8 @@ fn main() {
         args.out_prefix
     );
 
-    // ---- optional interactive HTML dashboard ----
-    if let Some(path) = &args.dashboard {
+    // ---- optional reports (dashboard HTML and/or mathematical trace in Markdown) ----
+    if args.dashboard.is_some() || args.trace.is_some() {
         let ctx = dashboard::Ctx {
             cohorts: &ph.cohorts,
             counts: &ph.counts,
@@ -587,9 +595,14 @@ fn main() {
             cutoff: &cut,
             logharm: &logharm,
         };
-        let html = dashboard::render(&ctx);
-        write(path, &html);
-        eprintln!("wrote interactive dashboard: {path}");
+        if let Some(path) = &args.dashboard {
+            write(path, &dashboard::render(&ctx));
+            eprintln!("wrote interactive dashboard: {path}");
+        }
+        if let Some(path) = &args.trace {
+            write(path, &trace::render(&ctx));
+            eprintln!("wrote mathematical trace (Markdown): {path}");
+        }
     }
 }
 

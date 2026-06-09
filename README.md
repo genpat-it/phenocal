@@ -92,7 +92,8 @@ phenocal \
 | `--bootstrap <B>` | bootstrap draws for credible intervals | 10000 |
 | `--thresholds <list>` | comma-separated tolerance cutoffs (raw scale) | 0.75,1.0,1.25,1.5,2.0 |
 | `--seed <S>` | RNG seed | 20260603 |
-| `--dashboard <FILE>` | also write the interactive HTML report | off |
+| `--dashboard <FILE>` | also write the interactive HTML report (open locally) | off |
+| `--trace <FILE>` | also write a step-by-step **mathematical trace** in Markdown (renders on GitHub, no compilation) | off |
 
 Run `phenocal --help` for the same list.
 
@@ -115,6 +116,16 @@ browser) to inspect the whole run:
 - **before → after** harmonisation (median + IQR per cohort on the log scale);
 - **per-edge detail** — every candidate twin pair with sample IDs, genomic distance, both MICs and the log-ratio, the rows that entered the adaptive-τ median highlighted, and the resulting edge Δ;
 - the **per-isolate** harmonised values and probabilistic labels, with a live filter.
+
+### Mathematical trace (`--trace FILE`)
+
+A step-by-step **Markdown** document of the actual run, with the real numbers and
+the formula behind each step: inputs and per-cohort σ_c, the per-edge twin tables
+and adaptive-τ selection, the WLS normal-equation matrices (AᵀWA, AᵀWΔ), the
+solution, the bootstrap credible intervals, and the data-driven cutoff. It is the
+didactic worked example auto-filled with this run's data. Because it is Markdown
+(with `$...$` math and tables), it **renders directly on GitHub** — no
+compilation, no Docker, just open it.
 
 ## Algorithm (per cohort pair, per ruler)
 
