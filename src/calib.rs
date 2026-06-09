@@ -6,7 +6,7 @@ use crate::linalg::{median, quantile, solve};
 use crate::rng::Rng;
 use std::collections::HashMap;
 
-const LOG10_2: f64 = 0.3010299956639812;
+use std::f64::consts::LOG10_2;
 
 /// One cross-cohort near-clonal pair (already oriented `a` vs `b`).
 pub struct Pair {
@@ -58,6 +58,9 @@ pub struct Params {
     pub robust: bool,
     /// Degrees of freedom for the robust t-likelihood.
     pub nu: f64,
+    /// Drift-tolerance scale (units of the τ-drift bound):
+    /// 0 = doubling (log10 2), 1 = rms of σ (default), 2 = mean of σ, 3 = max of σ.
+    pub drift_scale: u8,
 }
 
 /// Adaptive tau selection + edge statistics for one cohort pair.
@@ -86,9 +89,18 @@ fn build_edge(
     let mut chosen_tau = *taus.last().unwrap();
     let mut chosen_vals: Vec<f64> = pairs.iter().map(|x| x.signed).collect();
     let mut satisfied = false;
+    // drift tolerance scale (does not assume a two-fold grid unless drift_scale=0):
+    // reduces to log10(2) when both cohorts are two-fold (sigma=log10 2).
+    let edge_res = match p.drift_scale {
+        0 => LOG10_2,
+        2 => (sigma_a + sigma_b) / 2.0,
+        3 => sigma_a.max(sigma_b),
+        _ => ((sigma_a * sigma_a + sigma_b * sigma_b) / 2.0).sqrt(),
+    }
+    .max(1e-9);
     for &tau in &taus {
         let vals: Vec<f64> = pairs.iter().filter(|x| x.dist <= tau).map(|x| x.signed).collect();
-        let drift = (median(&vals) - base).abs() / LOG10_2;
+        let drift = (median(&vals) - base).abs() / edge_res;
         if vals.len() >= p.min_support && drift <= p.max_drift_dilutions {
             chosen_tau = tau;
             chosen_vals = vals;
@@ -169,7 +181,7 @@ pub fn build_edges(pairs: &[Pair], n_cohorts: usize, p: &Params) -> Vec<Edge> {
         }
     }
     // stable order for reproducible output
-    edges.sort_by(|x, y| (x.a, x.b).cmp(&(y.a, y.b)));
+    edges.sort_by_key(|e| (e.a, e.b));
     edges
 }
 

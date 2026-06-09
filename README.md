@@ -75,17 +75,34 @@ phenocal \
   --dashboard result.html   # optional; interactive HTML report
 ```
 
-Options: `--already-log` (value is already log10), `--min-support N` (default 5),
-`--max-drift D` (dilutions, default 1.0), `--bootstrap B` (default 10000),
-`--seed S`, `--thresholds 0.75,1.0,1.25,1.5,2.0`, `--sigma fixed|empirical`,
-`--lambda L`, `--robust` (Student-t bootstrap), `--dashboard FILE`.
+### Options
+
+| flag | meaning | default |
+|---|---|---|
+| `--anchor <COHORT>` | cohort fixed to offset 0 | largest cohort |
+| `--already-log` | `value` is already log10 | off (raw, log10 applied) |
+| `--min-support <N>` | min near-clonal pairs per edge (n_min) | 5 |
+| `--max-drift <D>` | max median drift (κ) for τ selection | 1.0 |
+| `--sigma <fixed\|empirical>` | per-cohort resolution σ_c: fixed (log10 2) or estimated from each cohort's grid | fixed |
+| `--drift-scale <doubling\|rms\|mean\|max>` | units of the τ drift tolerance (combine the two cohort σ); not load-bearing | rms |
+| `--lambda <L>` | biological-drift variance per unit genetic distance in the edge SE | log10(2)² |
+| `--robust` | robust bootstrap (Student-t edge perturbations) | off (Normal) |
+| `--nu <DF>` | degrees of freedom for `--robust` | 4 |
+| `--bootstrap <B>` | bootstrap draws for credible intervals | 10000 |
+| `--thresholds <list>` | comma-separated tolerance cutoffs (raw scale) | 0.75,1.0,1.25,1.5,2.0 |
+| `--seed <S>` | RNG seed | 20260603 |
+| `--dashboard <FILE>` | also write the interactive HTML report | off |
+
+Run `phenocal --help` for the same list.
 
 ## Outputs
 
 - `<out>.offsets.tsv` — per cohort: δ (log10), fold vs anchor, 95% credible interval.
+- `<out>.sigma.tsv` — per cohort: estimated measurement resolution σ_c (log10 and in dilutions) and the σ mode. With `--sigma empirical` this is read off each cohort's own MIC grid (recovers log10 2 ≈ 0.30 for two-fold cohorts, smaller for finer grids).
 - `<out>.edges.tsv` — per cohort pair: d_min, selected τ, n pairs, fold, SE, weight (transparency on what supports each edge).
 - `<out>.harmonised.tsv` — per sample: raw and harmonised phenotype (`value / 10^δ`).
 - `<out>.labels.tsv` — per sample: harmonised value + probability of tolerance `P(T)` at each threshold.
+- `<out>.cutoff.tsv` — data-driven sensitive/tolerant cutoff on the harmonised scale, by two methods: **KDE antimode** (non-parametric density valley) and **GMM crossover** (Bayes-optimal boundary of a 2-component Gaussian mixture, with a bootstrap 95% interval). They bracket the cutoff; phenocal does not commit to a single value (the cutoff is treated as uncertain).
 
 ### Interactive dashboard (`--dashboard FILE`)
 

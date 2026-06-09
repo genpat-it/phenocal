@@ -29,6 +29,12 @@ impl Rng {
         (u as f64 + 0.5) * (1.0 / 9007199254740992.0)
     }
 
+    /// Uniform integer in [0, n) for bootstrap resampling.
+    #[inline]
+    pub fn next_index(&mut self, n: usize) -> usize {
+        ((self.next_f64() * n as f64) as usize).min(n.saturating_sub(1))
+    }
+
     /// One standard-normal draw via Box-Muller.
     #[inline]
     pub fn next_normal(&mut self) -> f64 {

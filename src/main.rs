@@ -12,12 +12,14 @@
 //! Zero external dependencies.
 
 mod calib;
+mod cutoff;
 mod dashboard;
 mod linalg;
 mod rng;
 
 use calib::{build_edges, fit, Pair, Params};
 use std::collections::HashMap;
+use std::f64::consts::LOG10_2;
 use std::fs;
 use std::process::exit;
 
@@ -33,6 +35,7 @@ struct Args {
     seed: u64,
     thresholds: Vec<f64>,
     sigma_mode: String, // "fixed" | "empirical"
+    drift_scale: u8,    // 0=doubling 1=rms 2=mean 3=max
     lambda: f64,
     robust: bool,
     nu: f64,
@@ -51,9 +54,13 @@ REQUIRED:
     --pairs <FILE>        TSV with header columns: sample_i  sample_j  distance
                           (genomic distance; within- and cross-cohort allowed,
                            only cross-cohort pairs are used)
-    --out <PREFIX>        Output prefix (writes <prefix>.offsets.tsv,
-                          <prefix>.harmonised.tsv, <prefix>.labels.tsv,
-                          <prefix>.edges.tsv)
+    --out <PREFIX>        Output prefix. Writes:
+                            <prefix>.offsets.tsv    cohort offsets + 95% CrI
+                            <prefix>.sigma.tsv      per-cohort resolution sigma_c
+                            <prefix>.edges.tsv      per cohort-pair: d_min, tau, n, fold, SE, weight
+                            <prefix>.harmonised.tsv per-sample raw + harmonised value
+                            <prefix>.labels.tsv     per-sample P(tolerant) per threshold
+                            <prefix>.cutoff.tsv     data-driven cutoff (KDE antimode + GMM crossover)
 
 OPTIONS:
     --anchor <COHORT>     Cohort fixed to offset 0 (default: largest cohort)
@@ -67,6 +74,9 @@ OPTIONS:
     --sigma <MODE>        Per-cohort noise model: 'fixed' (= log10(2), classic) or
                           'empirical' (estimated from each cohort's MIC grid spacing).
                           Default 'fixed'.
+    --drift-scale <S>     Units of the tau drift tolerance: 'doubling' (log10 2),
+                          'rms' (default), 'mean', or 'max' of the cohort resolutions.
+                          Not load-bearing (offsets are essentially invariant).
     --lambda <L>          Biological-drift variance per unit genetic distance in the
                           edge SE (default log10(2)^2). SE_ab = sqrt((s_a^2+s_b^2+L*tau)/n).
     --robust              Robust bootstrap: sample edge perturbations from Student-t
@@ -96,7 +106,8 @@ fn parse_args() -> Args {
         seed: 20260603,
         thresholds: vec![0.75, 1.0, 1.25, 1.5, 2.0],
         sigma_mode: "fixed".to_string(),
-        lambda: 0.3010299956639812_f64.powi(2), // log10(2)^2 -> reproduces the classic SE
+        drift_scale: 1, // rms
+        lambda: LOG10_2.powi(2), // log10(2)^2 -> reproduces the classic SE
         robust: false,
         nu: 4.0,
         dashboard: None,
@@ -130,6 +141,18 @@ fn parse_args() -> Args {
                     .collect()
             }
             "--sigma" => a.sigma_mode = it.next().unwrap_or_else(|| usage()),
+            "--drift-scale" => {
+                a.drift_scale = match it.next().unwrap_or_else(|| usage()).as_str() {
+                    "doubling" => 0,
+                    "rms" => 1,
+                    "mean" => 2,
+                    "max" => 3,
+                    other => {
+                        eprintln!("Unknown --drift-scale '{other}' (use doubling|rms|mean|max).");
+                        exit(1);
+                    }
+                }
+            }
             "--lambda" => {
                 a.lambda = it.next().unwrap_or_else(|| usage()).parse().unwrap_or_else(|_| usage())
             }
@@ -327,7 +350,7 @@ fn main() {
     }
 
     // per-cohort noise scale sigma_c
-    let sigma_fixed = 0.3010299956639812_f64 / std::f64::consts::SQRT_2; // log10(2)/sqrt(2)
+    let sigma_fixed = LOG10_2 / std::f64::consts::SQRT_2; // log10(2)/sqrt(2)
     let sigma: Vec<f64> = match args.sigma_mode.as_str() {
         "fixed" => vec![sigma_fixed; ph.cohorts.len()],
         "empirical" => ph
@@ -350,6 +373,7 @@ fn main() {
         lambda: args.lambda,
         robust: args.robust,
         nu: args.nu,
+        drift_scale: args.drift_scale,
     };
 
     let edges = build_edges(&pairs, ph.cohorts.len(), &params);
@@ -373,6 +397,20 @@ fn main() {
         ));
     }
     write(&format!("{}.offsets.tsv", args.out_prefix), &off);
+
+    // ---- per-cohort measurement resolution sigma_c ----
+    let mut sg = String::from("cohort\tn\tsigma_log10\tsigma_dilutions\tmode\n");
+    for (i, c) in ph.cohorts.iter().enumerate() {
+        sg.push_str(&format!(
+            "{}\t{}\t{:.5}\t{:.3}\t{}\n",
+            c,
+            ph.counts[c],
+            sigma[i],
+            sigma[i] / LOG10_2,
+            args.sigma_mode,
+        ));
+    }
+    write(&format!("{}.sigma.tsv", args.out_prefix), &sg);
 
     // ---- edges (transparency: d_min / tau / n / fold) ----
     let mut et =
@@ -456,6 +494,41 @@ fn main() {
     }
     write(&format!("{}.labels.tsv", args.out_prefix), &lab);
 
+    // ---- data-driven cutoff on the harmonised scale (KDE antimode + GMM crossover) ----
+    let logharm: Vec<f64> = iso_rows
+        .iter()
+        .filter(|r| r.harm > 0.0)
+        .map(|r| r.harm.log10())
+        .collect();
+    let cut = cutoff::estimate(&logharm, params.bootstrap, args.seed);
+    let fmt = |o: Option<f64>| o.map(|x| format!("{:.4}", x)).unwrap_or_else(|| "NA".into());
+    let fmt_mgl = |o: Option<f64>| o.map(|x| format!("{:.4}", 10f64.powf(x))).unwrap_or_else(|| "NA".into());
+    let nan_mgl = |x: f64| if x.is_finite() { format!("{:.4}", 10f64.powf(x)) } else { "NA".into() };
+    let mut ct = String::from("method\tcutoff_log10\tcutoff_mgL\tlo95_mgL\thi95_mgL\n");
+    ct.push_str(&format!(
+        "kde_antimode\t{}\t{}\tNA\tNA\n",
+        fmt(cut.kde_antimode),
+        fmt_mgl(cut.kde_antimode)
+    ));
+    ct.push_str(&format!(
+        "gmm_crossover\t{}\t{}\t{}\t{}\n",
+        fmt(cut.gmm_crossover),
+        fmt_mgl(cut.gmm_crossover),
+        nan_mgl(cut.gmm_lo),
+        nan_mgl(cut.gmm_hi)
+    ));
+    write(&format!("{}.cutoff.tsv", args.out_prefix), &ct);
+    eprintln!(
+        "data-driven cutoff (harmonised, mg/L): KDE antimode {}, GMM crossover {} [{}, {}] \
+         (mixture modes ~{:.2} vs ~{:.2})",
+        fmt_mgl(cut.kde_antimode),
+        fmt_mgl(cut.gmm_crossover),
+        nan_mgl(cut.gmm_lo),
+        nan_mgl(cut.gmm_hi),
+        10f64.powf(cut.mu_sensitive),
+        10f64.powf(cut.mu_tolerant)
+    );
+
     // ---- summary ----
     eprintln!(
         "phenocal: {} cohorts, {} cross-cohort pairs, {} edges, anchor = {} | sigma={} lambda={:.4}{}",
@@ -474,7 +547,7 @@ fn main() {
     eprintln!(
         "weighted residual RMSE = {:.4} log10 ({:.2} dilutions)",
         sol.rmse,
-        sol.rmse / 0.30103
+        sol.rmse / LOG10_2
     );
     eprintln!("cohort offsets (fold vs anchor, 95% CrI):");
     for (i, c) in ph.cohorts.iter().enumerate() {
@@ -487,7 +560,7 @@ fn main() {
         );
     }
     eprintln!(
-        "wrote {0}.offsets.tsv {0}.edges.tsv {0}.harmonised.tsv {0}.labels.tsv",
+        "wrote {0}.offsets.tsv {0}.sigma.tsv {0}.edges.tsv {0}.harmonised.tsv {0}.labels.tsv {0}.cutoff.tsv",
         args.out_prefix
     );
 

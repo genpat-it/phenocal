@@ -9,7 +9,7 @@
 use crate::calib::{Edge, Solution};
 use crate::linalg::{median, quantile};
 use std::collections::HashMap;
-use std::f64::consts::PI;
+use std::f64::consts::{LOG10_2, PI};
 
 /// Per-isolate row passed in from main.
 pub struct Iso {
@@ -40,8 +40,6 @@ pub struct Ctx<'a> {
     pub thresholds: &'a [f64],
     pub isolates: &'a [Iso],
 }
-
-const LOG10_2: f64 = 0.3010299956639812;
 
 fn esc(s: &str) -> String {
     s.replace('&', "&amp;")
@@ -236,7 +234,7 @@ fn forest_svg(h: &mut String, c: &Ctx) {
     h.push_str(&format!("<svg viewBox=\"0 0 {w} {ht}\" class=\"fig\">\n"));
     // gridlines at nice fold values
     for &f in &[0.1f64, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0] {
-        let d = (f as f64).log10();
+        let d = f.log10();
         if d < lo || d > hi {
             continue;
         }
@@ -310,7 +308,7 @@ fn beforeafter_svg(h: &mut String, c: &Ctx) {
     h.push_str(&format!("<svg viewBox=\"0 0 {w} {ht}\" class=\"fig\">\n"));
     // x ticks (fold of MIC)
     for &f in &[0.1f64, 0.3, 1.0, 3.0, 10.0, 30.0] {
-        let d = (f as f64).log10();
+        let d = f.log10();
         if d < lo || d > hi { continue; }
         let x = xof(d);
         h.push_str(&format!(
@@ -335,7 +333,7 @@ fn beforeafter_svg(h: &mut String, c: &Ctx) {
     h.push_str("</svg>\n");
 }
 
-fn whisker<F: Fn(f64) -> f64>(h: &mut String, v: &mut Vec<f64>, xof: F, y: f64, col: &str, solid: bool) {
+fn whisker<F: Fn(f64) -> f64>(h: &mut String, v: &mut [f64], xof: F, y: f64, col: &str, solid: bool) {
     if v.is_empty() {
         return;
     }
