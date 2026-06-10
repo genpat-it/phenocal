@@ -3,9 +3,9 @@
 **Genome-anchored calibration of a continuous phenotype across cohorts/batches,
 with uncertainty-propagated probabilistic labels.**
 
-`phenocal` implements the genome-anchored MIC calibration method developed by
-de Ruvo, Castelli, Di Pasquale and Radomski (*Genome-Anchored Probabilistic MIC
-Labels*; see Citation below). It is organism-, phenotype-, and schema-agnostic:
+`phenocal` is the reference implementation of the genome-anchored
+phenotype-calibration method of de Ruvo et al. (*PhenoCal*; see Citation below).
+It is organism-, phenotype-, and schema-agnostic:
 given a continuous phenotype, a cohort/batch label per sample, and any genomic
 distance that can flag near-clonal pairs, it estimates one calibration offset
 per cohort and propagates calibration uncertainty into per-cohort credible
@@ -36,12 +36,12 @@ phenocal --phenotypes examples/toy_phenotypes.tsv \
 ```
 
 The toy has three labs measuring three shared strains; `labB` reads ~2× and
-`labC` ~5× higher than `labA`. `phenocal` recovers exactly that:
+`labC` ~5× higher than `labA`. `phenocal` recovers that:
 
 ```
 labA   1.00x  [1.00, 1.00]   (anchor)
-labB   2.00x  [1.07, 3.71]
-labC   4.99x  [2.81, 9.15]
+labB   1.99x  [1.05, 3.78]
+labC   5.01x  [2.64, 9.26]
 ```
 
 ## Inputs
@@ -157,7 +157,10 @@ compilation, no Docker, just open it.
    per-cohort resolution `σ_c` (`--sigma`); `w = 1/SE²`. (Reduces to
    `log10(2)·sqrt((1+τ)/n)` when all cohorts are two-fold.)
 4. Weighted least squares on the comparison graph for cohort offsets, anchor δ=0.
-5. Bootstrap (sample `Δ* ~ N(Δ, SE²)`, refit) → 95% credible intervals.
+5. Bootstrap (sample `Δ* ~ N(Δ, SE²)`, refit) → pair-level 95% credible intervals.
+   With `--clusters`, also resample clonal clusters (not pairs) per edge and refit
+   → **cluster-weighted point** + **cluster-effective** interval, the preferred
+   inferential summary when near-clonal pairs are nested in clusters.
 6. Per threshold `c`: `P(T_i(c)) = mean over draws of [ MIC_i / 10^δ ≥ c ]`.
 
 The offsets are identifiable up to an additive constant (gauge); the anchor is a
@@ -166,12 +169,14 @@ paper). A connected graph is required.
 
 ## Validation
 
-On the *Listeria monocytogenes* benzalkonium-chloride dataset (2099 isolates,
-5 cohorts, cgMLST pairs), `phenocal` reproduces the paper's Table 2: Kragh 0.92×,
-Palma ~1.17×, Cooper ~5.0×, He ~11.4× (anchor Ivanova), weighted residual
-RMSE ≈ 0.10 log10.
+The PhenoCal manuscript's worked example is a public *Salmonella* /
+ciprofloxacin-MIC dataset (see the paper). Independently, the tool was developed
+and checked on a *Listeria monocytogenes* benzalkonium-chloride dataset (2099
+isolates, 5 cohorts, cgMLST pairs), where it recovers cohort offsets of
+Kragh 0.92×, Palma ~1.17×, Cooper ~5.0×, He ~11.4× (anchor Ivanova), weighted
+residual RMSE ≈ 0.10 log10.
 
-The five source cohorts:
+The five *Listeria* source cohorts:
 
 - **Cooper** — Cooper et al. (2021), *J. Food Prot.* 84:389–398. doi:10.4315/JFP-20-328
 - **He** — He et al. (2022), *Appl. Environ. Microbiol.* 88:e01269-22. doi:10.1128/aem.01269-22
@@ -181,10 +186,10 @@ The five source cohorts:
 
 ## Citation
 
-de Ruvo A†, Castelli P†, Di Pasquale A, Radomski N.
-*Genome-Anchored Probabilistic MIC Labels: Uncertainty-Aware Phenotype
-Construction for Cross-Cohort Machine Learning* (in preparation).
-† equal contribution (co-first authors); either may list their name first on their CV.
+de Ruvo A, Castelli P, Di Pasquale A, Radomski N.
+*PhenoCal: Genome-Anchored Probabilistic Calibration of Continuous Phenotypes
+Across Microbial Genomics Cohorts* (in preparation).
+Corresponding author: A. de Ruvo (`a.deruvo@izs.it`).
 
 ## License
 
