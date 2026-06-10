@@ -72,7 +72,7 @@ phenocal \
   --phenotypes pheno.tsv \
   --pairs pairs.tsv \
   --out result \
-  --anchor Ivanova          # optional; default = largest cohort
+  --anchor USA              # optional; default = largest cohort
   --dashboard result.html   # optional; interactive HTML report
 ```
 
@@ -169,20 +169,18 @@ paper). A connected graph is required.
 
 ## Validation
 
-The PhenoCal manuscript's worked example is a public *Salmonella* /
-ciprofloxacin-MIC dataset (see the paper). Independently, the tool was developed
-and checked on a *Listeria monocytogenes* benzalkonium-chloride dataset (2099
-isolates, 5 cohorts, cgMLST pairs), where it recovers cohort offsets of
-Kragh 0.92×, Palma ~1.17×, Cooper ~5.0×, He ~11.4× (anchor Ivanova), weighted
-residual RMSE ≈ 0.10 log10.
+The PhenoCal manuscript validates the method on a public *Salmonella enterica* /
+ciprofloxacin-MIC dataset (9,854 isolates assembled from NCBI Pathogen Detection;
+see the paper). Primary validation is a controlled realistic benchmark with known
+protocol offsets and biological mismatch, where `phenocal` recovers the imposed
+offset markedly better than naive cohort median-shift; an injected-shift experiment
+on the real genomes recovers known 2×/4×/8× offsets, and the propagated
+probabilistic labels recover the true above-cutoff status. The public surveillance
+cohorts (USA, Mexico, South Korea) serve as a weak diagnostic negative control.
 
-The five *Listeria* source cohorts:
-
-- **Cooper** — Cooper et al. (2021), *J. Food Prot.* 84:389–398. doi:10.4315/JFP-20-328
-- **He** — He et al. (2022), *Appl. Environ. Microbiol.* 88:e01269-22. doi:10.1128/aem.01269-22
-- **Palma** — Palma et al. (2022), *Food Microbiol.* 106:103757. doi:10.1016/j.fm.2021.103757
-- **Kragh** — Kragh et al. (2024), *Food Control* 158:110244. doi:10.1016/j.foodcont.2023.110244
-- **Ivanova** (anchor) — Ivanova et al. (2025), *Appl. Environ. Microbiol.* 91:e01829-24. doi:10.1128/aem.01829-24
+The implementation ships an 11-test suite (offset recovery, anchor invariance,
+edge selection, cutoff, cluster-effective recovery) run under CI; `cargo test`
+passes.
 
 ## Citation
 
