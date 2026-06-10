@@ -44,6 +44,7 @@ struct Args {
     trace: Option<String>,
     quick: bool,     // offsets + edges + sigma only; skip harmonised/labels/cutoff
     no_cutoff: bool, // skip only the data-driven cutoff (keep harmonised + labels)
+    clusters: Option<String>, // sample->cluster TSV; enables cluster-effective bootstrap
 }
 
 fn usage() -> ! {
@@ -95,6 +96,11 @@ OPTIONS:
                           in Markdown (inputs, per-edge twins + tau selection,
                           WLS normal-equation matrices, bootstrap CIs, cutoff).
                           Renders directly on GitHub; no compilation needed.
+    --clusters <FILE>     TSV (sample<TAB>cluster) of clonal-cluster ids. When given,
+                          offsets.tsv additionally reports the cluster-weighted point
+                          and a cluster-effective 95% interval (bootstrap resampling
+                          clonal clusters, not pairs) -- the preferred inferential
+                          summary when near-clonal pairs are nested in clusters.
     --no-cutoff           Skip the data-driven cutoff estimation (the costly
                           GMM/KDE bootstrap); still writes harmonised + labels.
                           Use with --thresholds to supply a known cutoff.
@@ -127,6 +133,7 @@ fn parse_args() -> Args {
         trace: None,
         quick: false,
         no_cutoff: false,
+        clusters: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -138,6 +145,7 @@ fn parse_args() -> Args {
             "--already-log" => a.already_log = true,
             "--quick" => a.quick = true,
             "--no-cutoff" => a.no_cutoff = true,
+            "--clusters" => a.clusters = Some(it.next().unwrap_or_else(|| usage())),
             "--min-support" => {
                 a.min_support = it
                     .next()
@@ -352,6 +360,28 @@ fn main() {
     let ci = col(&header, &["sample_i", "acc_i", "i"]);
     let cj = col(&header, &["sample_j", "acc_j", "j"]);
     let cd = col(&header, &["distance", "dist", "d"]);
+    // optional sample -> clonal-cluster map (for cluster-effective bootstrap)
+    let cluster_of: HashMap<String, String> = match &args.clusters {
+        Some(path) => {
+            let txt = fs::read_to_string(path)
+                .unwrap_or_else(|_| panic!("cannot read clusters file {path}"));
+            let mut m = HashMap::new();
+            for (i, line) in txt.lines().enumerate() {
+                let f: Vec<&str> = line.split('\t').collect();
+                if f.len() < 2 {
+                    continue;
+                }
+                // skip a header row if present
+                if i == 0 && f[1].eq_ignore_ascii_case("cluster") {
+                    continue;
+                }
+                m.insert(f[0].trim().to_string(), f[1].trim().to_string());
+            }
+            m
+        }
+        None => HashMap::new(),
+    };
+
     let mut pairs: Vec<Pair> = Vec::new();
     let mut n_cross = 0usize;
     for line in &lines[1..] {
@@ -379,6 +409,11 @@ fn main() {
             (Some(a), Some(b)) => (*a, *b),
             _ => continue,
         };
+        let cluster = cluster_of
+            .get(si)
+            .or_else(|| cluster_of.get(sj))
+            .cloned()
+            .unwrap_or_default();
         pairs.push(Pair {
             a: cidx[ca],
             b: cidx[cb],
@@ -388,6 +423,7 @@ fn main() {
             sj: sj.to_string(),
             va: yi,
             vb: yj,
+            cluster,
         });
         n_cross += 1;
     }
@@ -429,21 +465,61 @@ fn main() {
         exit(1);
     });
 
+    // ---- cluster-effective fit (preferred inference when cluster ids are given) ----
+    let sol_ce = if args.clusters.is_some() {
+        match calib::fit_cluster_effective(&edges, ph.cohorts.len(), anchor, &params) {
+            Ok(s) => Some(s),
+            Err(e) => {
+                eprintln!("Cluster-effective fit skipped: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     // ---- offsets ----
-    let mut off = String::from("cohort\tn\tdelta_log10\tfold\tfold_lo95\tfold_hi95\tanchor\n");
+    let mut off = if sol_ce.is_some() {
+        String::from(
+            "cohort\tn\tdelta_log10\tfold\tfold_lo95\tfold_hi95\t\
+             cluster_wt_fold\tcluster_eff_lo95\tcluster_eff_hi95\tanchor\n",
+        )
+    } else {
+        String::from("cohort\tn\tdelta_log10\tfold\tfold_lo95\tfold_hi95\tanchor\n")
+    };
     for (i, c) in ph.cohorts.iter().enumerate() {
         off.push_str(&format!(
-            "{}\t{}\t{:.5}\t{:.4}\t{:.4}\t{:.4}\t{}\n",
+            "{}\t{}\t{:.5}\t{:.4}\t{:.4}\t{:.4}\t",
             c,
             ph.counts[c],
             sol.delta[i],
             10f64.powf(sol.delta[i]),
             10f64.powf(sol.lo95[i]),
             10f64.powf(sol.hi95[i]),
-            if i == anchor { "yes" } else { "no" },
         ));
+        if let Some(ce) = &sol_ce {
+            off.push_str(&format!(
+                "{:.4}\t{:.4}\t{:.4}\t",
+                10f64.powf(ce.delta[i]),
+                10f64.powf(ce.lo95[i]),
+                10f64.powf(ce.hi95[i]),
+            ));
+        }
+        off.push_str(if i == anchor { "yes\n" } else { "no\n" });
     }
     write(&format!("{}.offsets.tsv", args.out_prefix), &off);
+    if let Some(ce) = &sol_ce {
+        eprintln!("cluster-effective offsets (cluster-weighted fold, 95% CrI):");
+        for (i, c) in ph.cohorts.iter().enumerate() {
+            eprintln!(
+                "  {:<14} {:>7.2}x  [{:>6.2}, {:>6.2}]",
+                c,
+                10f64.powf(ce.delta[i]),
+                10f64.powf(ce.lo95[i]),
+                10f64.powf(ce.hi95[i])
+            );
+        }
+    }
 
     // ---- per-cohort measurement resolution sigma_c ----
     let mut sg = String::from("cohort\tn\tsigma_log10\tsigma_dilutions\tmode\n");

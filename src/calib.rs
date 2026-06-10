@@ -10,14 +10,15 @@ use std::f64::consts::LOG10_2;
 
 /// One cross-cohort near-clonal pair (already oriented `a` vs `b`).
 pub struct Pair {
-    pub a: usize,    // cohort index of sample si
-    pub b: usize,    // cohort index of sample sj
-    pub dist: f64,   // genomic distance between the two isolates
-    pub signed: f64, // y_a - y_b  (log10 phenotype difference, a over b)
-    pub si: String,  // sample on the a side
-    pub sj: String,  // sample on the b side
-    pub va: f64,     // log10 phenotype of si
-    pub vb: f64,     // log10 phenotype of sj
+    pub a: usize,        // cohort index of sample si
+    pub b: usize,        // cohort index of sample sj
+    pub dist: f64,       // genomic distance between the two isolates
+    pub signed: f64,     // y_a - y_b  (log10 phenotype difference, a over b)
+    pub si: String,      // sample on the a side
+    pub sj: String,      // sample on the b side
+    pub va: f64,         // log10 phenotype of si
+    pub vb: f64,         // log10 phenotype of sj
+    pub cluster: String, // clonal-cluster id (empty if unknown); for cluster-effective bootstrap
 }
 
 /// One supporting twin pair for an edge (oriented a over b), kept for inspection.
@@ -26,10 +27,11 @@ pub struct EdgePair {
     pub si: String,
     pub sj: String,
     pub dist: f64,
-    pub va: f64,     // log10 value, a side
-    pub vb: f64,     // log10 value, b side
-    pub signed: f64, // va - vb
-    pub used: bool,  // within the chosen tau (entered the median)
+    pub va: f64,         // log10 value, a side
+    pub vb: f64,         // log10 value, b side
+    pub signed: f64,     // va - vb
+    pub used: bool,      // within the chosen tau (entered the median)
+    pub cluster: String, // clonal-cluster id (empty if unknown)
 }
 
 /// A fitted edge between two cohorts.
@@ -163,6 +165,7 @@ pub fn build_edges(pairs: &[Pair], n_cohorts: usize, p: &Params) -> Vec<Edge> {
                 vb: pr.vb,
                 signed: pr.signed,
                 used: false,
+                cluster: pr.cluster.clone(),
             }
         } else {
             EdgePair {
@@ -173,6 +176,7 @@ pub fn build_edges(pairs: &[Pair], n_cohorts: usize, p: &Params) -> Vec<Edge> {
                 vb: pr.va,
                 signed: -pr.signed,
                 used: false,
+                cluster: pr.cluster.clone(),
             }
         };
         let (a, b) = if pr.a < pr.b {
@@ -329,6 +333,115 @@ pub fn fit(
     })
 }
 
+/// Cluster-effective fit: cluster-weighted point estimate + cluster-effective
+/// bootstrap intervals. Near-clonal pairs within one clonal cluster are not
+/// independent, so this resamples CLUSTERS (not pairs) per edge. The point per edge
+/// is the median over per-cluster medians (one vote per clonal unit), and each
+/// bootstrap draw resamples the supporting clusters of every edge with replacement,
+/// pools their signed values, takes the median, and refits the WLS system. Requires
+/// cluster ids on the used pairs (otherwise every pair is its own "cluster" and this
+/// reduces toward the pair-level fit). `Solution.delta` is the cluster-weighted point.
+pub fn fit_cluster_effective(
+    edges: &[Edge],
+    n_cohorts: usize,
+    anchor: usize,
+    p: &Params,
+) -> Result<Solution, String> {
+    let mut free_col = HashMap::new();
+    let mut free_list = Vec::new();
+    for c in 0..n_cohorts {
+        if c != anchor {
+            free_col.insert(c, free_list.len());
+            free_list.push(c);
+        }
+    }
+    let k = free_list.len();
+
+    // per-edge: signed values of used pairs grouped by clonal cluster
+    let edge_clusters: Vec<Vec<Vec<f64>>> = edges
+        .iter()
+        .map(|e| {
+            let mut m: std::collections::BTreeMap<String, Vec<f64>> =
+                std::collections::BTreeMap::new();
+            for c in e.cand.iter().filter(|c| c.used) {
+                // empty cluster id -> treat each pair as its own unit (keyed by sample pair)
+                let key = if c.cluster.is_empty() {
+                    format!("{}|{}", c.si, c.sj)
+                } else {
+                    c.cluster.clone()
+                };
+                m.entry(key).or_default().push(c.signed);
+            }
+            m.into_values().collect()
+        })
+        .collect();
+
+    // cluster-weighted point per edge = median over per-cluster medians
+    let cw_deltas: Vec<f64> = edge_clusters
+        .iter()
+        .enumerate()
+        .map(|(ei, clusters)| {
+            if clusters.is_empty() {
+                edges[ei].delta
+            } else {
+                let cms: Vec<f64> = clusters.iter().map(|v| median(v)).collect();
+                median(&cms)
+            }
+        })
+        .collect();
+    let sol = wls(edges, &cw_deltas, &free_col, k)
+        .ok_or_else(|| "Calibration graph is singular (disconnected from anchor?).".to_string())?;
+    let to_full = |x: &[f64]| -> Vec<f64> {
+        let mut full = vec![0.0; n_cohorts];
+        for (c, &col) in free_col.iter() {
+            full[*c] = x[col];
+        }
+        full
+    };
+    let cw_full = to_full(&sol);
+
+    // cluster bootstrap: resample supporting clusters of each edge with replacement
+    let mut rng = Rng::new(p.seed);
+    let mut draws: Vec<Vec<f64>> = vec![Vec::with_capacity(p.bootstrap); k];
+    for _ in 0..p.bootstrap {
+        let sampled: Vec<f64> = edge_clusters
+            .iter()
+            .enumerate()
+            .map(|(ei, clusters)| {
+                if clusters.is_empty() {
+                    return edges[ei].delta;
+                }
+                let nc = clusters.len();
+                let mut pool: Vec<f64> = Vec::new();
+                for _ in 0..nc {
+                    pool.extend_from_slice(&clusters[rng.next_index(nc)]);
+                }
+                median(&pool)
+            })
+            .collect();
+        if let Some(x) = wls(edges, &sampled, &free_col, k) {
+            for col in 0..k {
+                draws[col].push(x[col]);
+            }
+        }
+    }
+
+    let mut lo = vec![0.0; n_cohorts];
+    let mut hi = vec![0.0; n_cohorts];
+    for (c, &col) in free_col.iter() {
+        let mut d = draws[col].clone();
+        d.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        lo[*c] = quantile(&d, 0.025);
+        hi[*c] = quantile(&d, 0.975);
+    }
+    Ok(Solution {
+        delta: cw_full, // cluster-weighted point (not the bootstrap median)
+        lo95: lo,
+        hi95: hi,
+        rmse: 0.0,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -411,6 +524,7 @@ mod tests {
             sj: "y".into(),
             va: 0.0,
             vb: -signed,
+            cluster: String::new(),
         };
         let pairs = vec![mk(0.0, 2f64.log10()), mk(0.0, 2f64.log10()), mk(2.0, 0.5)];
         let mut p = test_params();
@@ -427,5 +541,44 @@ mod tests {
         // empirical-sigma SE = sqrt((sa^2 + sb^2 + lambda*tau)/n), tau = 0 here
         let expect = ((0.2f64 * 0.2 + 0.3 * 0.3) / 2.0).sqrt();
         assert!((e.se - expect).abs() < 1e-9, "se {} vs {}", e.se, expect);
+    }
+
+    #[test]
+    fn cluster_effective_recovers_offset_and_degenerates_single_cluster() {
+        let l2 = 2f64.log10();
+        // one edge (cohort 0 vs 1), true offset 2x (a over b), spread over 3 clusters,
+        // each cluster contributing 2 identical pairs (so pair count != cluster count)
+        let mk = |cl: &str, signed: f64| Pair {
+            a: 0,
+            b: 1,
+            dist: 0.0,
+            signed,
+            si: format!("{cl}_x"),
+            sj: format!("{cl}_y"),
+            va: signed,
+            vb: 0.0,
+            cluster: cl.to_string(),
+        };
+        let pairs = vec![
+            mk("c1", l2),
+            mk("c1", l2),
+            mk("c2", l2),
+            mk("c2", l2),
+            mk("c3", l2),
+            mk("c3", l2),
+        ];
+        let mut p = test_params();
+        p.min_support = 1;
+        p.bootstrap = 500;
+        let edges = build_edges(&pairs, 2, &p);
+        let s = fit_cluster_effective(&edges, 2, 1, &p).unwrap();
+        // cluster-weighted point recovers 2x (cohort 0 vs anchor 1)
+        assert!(
+            (10f64.powf(s.delta[0]) - 2.0).abs() < 1e-6,
+            "cluster-weighted fold {}",
+            10f64.powf(s.delta[0])
+        );
+        // 3 identical clusters -> resampling cannot move the median -> degenerate CI
+        assert!((s.lo95[0] - s.hi95[0]).abs() < 1e-9);
     }
 }
