@@ -400,23 +400,50 @@ pub fn fit_cluster_effective(
     };
     let cw_full = to_full(&sol);
 
-    // cluster bootstrap: resample supporting clusters of each edge with replacement
+    // GLOBAL clustered bootstrap on the whole graph. A genomic-control group that
+    // spans several cohorts contributes to several edges; resampling it globally (once
+    // per draw, affecting ALL its edges together) propagates the correlation those
+    // shared groups induce between edges. Resampling each edge independently would
+    // treat those edges as independent and understate the joint uncertainty.
+    // Build the global group registry: group key -> (edge index -> signed values).
+    let n_edges = edges.len();
+    let mut reg: HashMap<String, HashMap<usize, Vec<f64>>> = HashMap::new();
+    for (ei, e) in edges.iter().enumerate() {
+        for c in e.cand.iter().filter(|c| c.used) {
+            let key = if c.cluster.is_empty() {
+                format!("{}|{}", c.si, c.sj)
+            } else {
+                c.cluster.clone()
+            };
+            reg.entry(key)
+                .or_default()
+                .entry(ei)
+                .or_default()
+                .push(c.signed);
+        }
+    }
+    // each group -> list of (edge, signed values it contributes to that edge)
+    let groups: Vec<Vec<(usize, Vec<f64>)>> =
+        reg.into_values().map(|m| m.into_iter().collect()).collect();
+    let ng = groups.len();
+
     let mut rng = Rng::new(p.seed);
     let mut draws: Vec<Vec<f64>> = vec![Vec::with_capacity(p.bootstrap); k];
     for _ in 0..p.bootstrap {
-        let sampled: Vec<f64> = edge_clusters
-            .iter()
-            .enumerate()
-            .map(|(ei, clusters)| {
-                if clusters.is_empty() {
-                    return edges[ei].delta;
+        // resample ng groups with replacement; pool their per-edge contributions
+        let mut pools: Vec<Vec<f64>> = vec![Vec::new(); n_edges];
+        for _ in 0..ng {
+            for (ei, vals) in &groups[rng.next_index(ng)] {
+                pools[*ei].extend_from_slice(vals);
+            }
+        }
+        let sampled: Vec<f64> = (0..n_edges)
+            .map(|ei| {
+                if pools[ei].is_empty() {
+                    cw_deltas[ei]
+                } else {
+                    median(&pools[ei])
                 }
-                let nc = clusters.len();
-                let mut pool: Vec<f64> = Vec::new();
-                for _ in 0..nc {
-                    pool.extend_from_slice(&clusters[rng.next_index(nc)]);
-                }
-                median(&pool)
             })
             .collect();
         if let Some(x) = wls(edges, &sampled, &free_col, k) {
