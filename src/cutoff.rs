@@ -148,6 +148,20 @@ pub struct Cutoff {
     pub comp_hi: (f64, f64, f64), // (weight, mu, sd) of the tolerant component
 }
 
+impl Cutoff {
+    /// Placeholder used when cutoff estimation is skipped (`--no-cutoff`).
+    pub fn empty() -> Self {
+        Cutoff {
+            kde_antimode: None,
+            gmm_crossover: None,
+            gmm_lo: f64::NAN,
+            gmm_hi: f64::NAN,
+            comp_lo: (f64::NAN, f64::NAN, f64::NAN),
+            comp_hi: (f64::NAN, f64::NAN, f64::NAN),
+        }
+    }
+}
+
 /// Estimate the cutoff from harmonised log10-MIC values.
 pub fn estimate(logvals: &[f64], bootstrap: usize, seed: u64) -> Cutoff {
     let mut sorted = logvals.to_vec();

@@ -42,6 +42,8 @@ struct Args {
     nu: f64,
     dashboard: Option<String>,
     trace: Option<String>,
+    quick: bool,     // offsets + edges + sigma only; skip harmonised/labels/cutoff
+    no_cutoff: bool, // skip only the data-driven cutoff (keep harmonised + labels)
 }
 
 fn usage() -> ! {
@@ -93,6 +95,11 @@ OPTIONS:
                           in Markdown (inputs, per-edge twins + tau selection,
                           WLS normal-equation matrices, bootstrap CIs, cutoff).
                           Renders directly on GitHub; no compilation needed.
+    --no-cutoff           Skip the data-driven cutoff estimation (the costly
+                          GMM/KDE bootstrap); still writes harmonised + labels.
+                          Use with --thresholds to supply a known cutoff.
+    --quick               Offsets + sigma + edges only; skip harmonised, labels
+                          and cutoff (fast path for large benchmarks).
     -h, --help            Show this help
 "
     );
@@ -118,6 +125,8 @@ fn parse_args() -> Args {
         nu: 4.0,
         dashboard: None,
         trace: None,
+        quick: false,
+        no_cutoff: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -127,6 +136,8 @@ fn parse_args() -> Args {
             "--out" => a.out_prefix = it.next().unwrap_or_else(|| usage()),
             "--anchor" => a.anchor = Some(it.next().unwrap_or_else(|| usage())),
             "--already-log" => a.already_log = true,
+            "--quick" => a.quick = true,
+            "--no-cutoff" => a.no_cutoff = true,
             "--min-support" => {
                 a.min_support = it
                     .next()
@@ -466,6 +477,16 @@ fn main() {
     }
     write(&format!("{}.edges.tsv", args.out_prefix), &et);
 
+    if args.quick {
+        // Offsets/edges/sigma only: skip the per-isolate label bootstrap and the
+        // GMM-cutoff bootstrap (the two costly steps), e.g. for large benchmarks.
+        eprintln!(
+            "(quick mode) wrote {0}.offsets.tsv {0}.sigma.tsv {0}.edges.tsv",
+            args.out_prefix
+        );
+        return;
+    }
+
     // ---- harmonised values ----
     let mut samples: Vec<&String> = ph.log_value.keys().collect();
     samples.sort();
@@ -498,6 +519,8 @@ fn main() {
         lab.push_str(&format!("\tP_tol_{}", fmt_thr(*t)));
     }
     lab.push('\n');
+    // compare in log space (monotone) to avoid a powf per draw in the hot loop
+    let logthr: Vec<f64> = args.thresholds.iter().map(|t| t.log10()).collect();
     let mut iso_rows: Vec<dashboard::Iso> = Vec::with_capacity(samples.len());
     for s in &samples {
         let c = &ph.cohort[*s];
@@ -506,10 +529,9 @@ fn main() {
         let harm = 10f64.powf(y - sol.delta[i]);
         let mut counts = vec![0usize; args.thresholds.len()];
         for _ in 0..b {
-            let di = sol.delta[i] + sd[i] * rng.next_normal();
-            let hvd = 10f64.powf(y - di);
-            for (k, t) in args.thresholds.iter().enumerate() {
-                if hvd >= *t {
+            let yd = y - (sol.delta[i] + sd[i] * rng.next_normal());
+            for (k, lt) in logthr.iter().enumerate() {
+                if yd >= *lt {
                     counts[k] += 1;
                 }
             }
@@ -536,46 +558,54 @@ fn main() {
         .filter(|r| r.harm > 0.0)
         .map(|r| r.harm.log10())
         .collect();
-    let cut = cutoff::estimate(&logharm, params.bootstrap, args.seed);
-    let fmt = |o: Option<f64>| {
-        o.map(|x| format!("{:.4}", x))
-            .unwrap_or_else(|| "NA".into())
+    let cut = if args.no_cutoff {
+        // Skip the (costly) GMM/KDE cutoff bootstrap; keep harmonised + labels.
+        // A user-supplied threshold (--thresholds) is the intended substitute.
+        eprintln!("(--no-cutoff) skipping data-driven cutoff estimation");
+        cutoff::Cutoff::empty()
+    } else {
+        let cut = cutoff::estimate(&logharm, params.bootstrap, args.seed);
+        let fmt = |o: Option<f64>| {
+            o.map(|x| format!("{:.4}", x))
+                .unwrap_or_else(|| "NA".into())
+        };
+        let fmt_mgl = |o: Option<f64>| {
+            o.map(|x| format!("{:.4}", 10f64.powf(x)))
+                .unwrap_or_else(|| "NA".into())
+        };
+        let nan_mgl = |x: f64| {
+            if x.is_finite() {
+                format!("{:.4}", 10f64.powf(x))
+            } else {
+                "NA".into()
+            }
+        };
+        let mut ct = String::from("method\tcutoff_log10\tcutoff_mgL\tlo95_mgL\thi95_mgL\n");
+        ct.push_str(&format!(
+            "kde_antimode\t{}\t{}\tNA\tNA\n",
+            fmt(cut.kde_antimode),
+            fmt_mgl(cut.kde_antimode)
+        ));
+        ct.push_str(&format!(
+            "gmm_crossover\t{}\t{}\t{}\t{}\n",
+            fmt(cut.gmm_crossover),
+            fmt_mgl(cut.gmm_crossover),
+            nan_mgl(cut.gmm_lo),
+            nan_mgl(cut.gmm_hi)
+        ));
+        write(&format!("{}.cutoff.tsv", args.out_prefix), &ct);
+        eprintln!(
+            "data-driven cutoff (harmonised, mg/L): KDE antimode {}, GMM crossover {} [{}, {}] \
+             (mixture modes ~{:.2} vs ~{:.2})",
+            fmt_mgl(cut.kde_antimode),
+            fmt_mgl(cut.gmm_crossover),
+            nan_mgl(cut.gmm_lo),
+            nan_mgl(cut.gmm_hi),
+            10f64.powf(cut.comp_lo.1),
+            10f64.powf(cut.comp_hi.1)
+        );
+        cut
     };
-    let fmt_mgl = |o: Option<f64>| {
-        o.map(|x| format!("{:.4}", 10f64.powf(x)))
-            .unwrap_or_else(|| "NA".into())
-    };
-    let nan_mgl = |x: f64| {
-        if x.is_finite() {
-            format!("{:.4}", 10f64.powf(x))
-        } else {
-            "NA".into()
-        }
-    };
-    let mut ct = String::from("method\tcutoff_log10\tcutoff_mgL\tlo95_mgL\thi95_mgL\n");
-    ct.push_str(&format!(
-        "kde_antimode\t{}\t{}\tNA\tNA\n",
-        fmt(cut.kde_antimode),
-        fmt_mgl(cut.kde_antimode)
-    ));
-    ct.push_str(&format!(
-        "gmm_crossover\t{}\t{}\t{}\t{}\n",
-        fmt(cut.gmm_crossover),
-        fmt_mgl(cut.gmm_crossover),
-        nan_mgl(cut.gmm_lo),
-        nan_mgl(cut.gmm_hi)
-    ));
-    write(&format!("{}.cutoff.tsv", args.out_prefix), &ct);
-    eprintln!(
-        "data-driven cutoff (harmonised, mg/L): KDE antimode {}, GMM crossover {} [{}, {}] \
-         (mixture modes ~{:.2} vs ~{:.2})",
-        fmt_mgl(cut.kde_antimode),
-        fmt_mgl(cut.gmm_crossover),
-        nan_mgl(cut.gmm_lo),
-        nan_mgl(cut.gmm_hi),
-        10f64.powf(cut.comp_lo.1),
-        10f64.powf(cut.comp_hi.1)
-    );
 
     // ---- summary ----
     eprintln!(
@@ -608,8 +638,13 @@ fn main() {
         );
     }
     eprintln!(
-        "wrote {0}.offsets.tsv {0}.sigma.tsv {0}.edges.tsv {0}.harmonised.tsv {0}.labels.tsv {0}.cutoff.tsv",
-        args.out_prefix
+        "wrote {0}.offsets.tsv {0}.sigma.tsv {0}.edges.tsv {0}.harmonised.tsv {0}.labels.tsv{1}",
+        args.out_prefix,
+        if args.no_cutoff {
+            ""
+        } else {
+            " (+.cutoff.tsv)"
+        }
     );
 
     // ---- sensitivity to our SE/drift formula choices (for the trace) ----
