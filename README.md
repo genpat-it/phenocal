@@ -91,11 +91,29 @@ phenocal \
 | `--nu <DF>` | degrees of freedom for `--robust` | 4 |
 | `--bootstrap <B>` | bootstrap draws for credible intervals | 10000 |
 | `--thresholds <list>` | comma-separated tolerance cutoffs (raw scale) | 0.75,1.0,1.25,1.5,2.0 |
+| `--clusters <FILE>` | TSV `sample<TAB>cluster` of clonal-cluster ids; enables the **cluster-effective** inference (cluster-weighted point + cluster-resampled 95% interval), the preferred summary when near-clonal pairs are nested in clusters | off (pair-level only) |
+| `--no-cutoff` | skip the (costly) data-driven cutoff estimation; still writes harmonised + labels | off |
 | `--seed <S>` | RNG seed | 20260603 |
 | `--dashboard <FILE>` | also write the interactive HTML report (open locally) | off |
 | `--trace <FILE>` | also write a step-by-step **mathematical trace** in Markdown (renders on GitHub, no compilation) | off |
 
 Run `phenocal --help` for the same list.
+
+### Cluster-effective inference (`--clusters`)
+
+When near-clonal pairs are nested within clonal clusters (e.g. NCBI SNP clusters),
+pairs from one cluster are not independent and the pair-level interval is
+anticonservative. Pass a `sample<TAB>cluster` table:
+
+```
+phenocal --phenotypes pheno.tsv --pairs pairs.tsv --clusters clusters.tsv \
+         --anchor USA --out out
+```
+
+`out.offsets.tsv` then gains three columns — `cluster_wt_fold` (median over
+per-cluster medians, one vote per clonal unit), `cluster_eff_lo95` and
+`cluster_eff_hi95` (bootstrap resampling clusters, not pairs). This is the
+preferred inferential summary when cluster ids are available.
 
 ## Outputs
 
