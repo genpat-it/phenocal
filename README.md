@@ -185,8 +185,9 @@ passes.
 ## Citation
 
 de Ruvo A, Castelli P, Di Pasquale A, Radomski N.
-*PhenoCal: Genome-Anchored Probabilistic Calibration of Continuous Phenotypes
-Across Microbial Genomics Cohorts* (in preparation).
+*PhenoCal: Natural-Control Label Calibration for Cross-Cohort Machine Learning.*
+Accepted at The 12th International Artificial Intelligence Symposium (AIS 2026);
+to appear in Springer Lecture Notes in Computer Science (LNCS).
 Corresponding author: A. de Ruvo (`a.deruvo@izs.it`).
 
 ## License
