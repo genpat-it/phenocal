@@ -185,10 +185,6 @@ leave the cross-cohort task unevaluable; calibrated labels restore it. Robustnes
 a sweep of the relatedness bound τ, leave-one-edge-out refits, and permutation and
 leakage controls.
 
-A companion manuscript extends the evaluation to a public *Salmonella enterica* /
-ciprofloxacin-MIC dataset (NCBI Pathogen Detection) and to *M. tuberculosis*; those
-analyses are **not** part of the AIS 2026 paper.
-
 The implementation ships an 11-test suite (offset recovery, anchor invariance,
 edge selection, cutoff, cluster-effective recovery) run under CI; `cargo test`
 passes.
