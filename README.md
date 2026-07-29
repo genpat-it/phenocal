@@ -169,14 +169,25 @@ paper). A connected graph is required.
 
 ## Validation
 
-The PhenoCal manuscript validates the method on a public *Salmonella enterica* /
-ciprofloxacin-MIC dataset (9,854 isolates assembled from NCBI Pathogen Detection;
-see the paper). Primary validation is a controlled realistic benchmark with known
-protocol offsets and biological mismatch, where `phenocal` recovers the imposed
-offset markedly better than naive cohort median-shift; an injected-shift experiment
-on the real genomes recovers known 2×/4×/8× offsets, and the propagated
-probabilistic labels recover the true above-cutoff status. The public surveillance
-cohorts (USA, Mexico, South Korea) serve as a weak diagnostic negative control.
+**Controlled benchmark (known truth).** Simulated cohorts with planted offsets, where
+the estimator recovers them, the propagated intervals cover at the nominal rate and
+widen gracefully as the comparison graph thins, and the estimate stays unbiased where
+naive pooling and additive per-cohort mean-centering (what ComBat-style correction
+reduces to for a single label) over-correct because cohorts sample different biological
+populations. The stated failure mode — a cohort-directional biological shift, constant
+within a cohort — is read as protocol by construction and is reported as the
+identifiability boundary rather than hidden.
+
+**Real case (AIS 2026 paper).** Benzalkonium-chloride minimum inhibitory concentrations
+of *Listeria monocytogenes* from five laboratory cohorts, with the genome as the
+similarity ruler (cgMLST and wgMLST used as two independent rulers). Raw pooled labels
+leave the cross-cohort task unevaluable; calibrated labels restore it. Robustness covers
+a sweep of the relatedness bound τ, leave-one-edge-out refits, and permutation and
+leakage controls.
+
+A companion manuscript extends the evaluation to a public *Salmonella enterica* /
+ciprofloxacin-MIC dataset (NCBI Pathogen Detection) and to *M. tuberculosis*; those
+analyses are **not** part of the AIS 2026 paper.
 
 The implementation ships an 11-test suite (offset recovery, anchor invariance,
 edge selection, cutoff, cluster-effective recovery) run under CI; `cargo test`
@@ -188,7 +199,7 @@ de Ruvo A, Castelli P, Di Pasquale A, Radomski N.
 *PhenoCal: Natural-Control Label Calibration for Cross-Cohort Machine Learning.*
 Accepted at The 12th International Artificial Intelligence Symposium (AIS 2026);
 to appear in Springer Lecture Notes in Computer Science (LNCS).
-Corresponding author: A. de Ruvo (`a.deruvo@izs.it`).
+Corresponding author: A. de Ruvo (`andrea.deruvo@gssi.it`).
 
 ## License
 
