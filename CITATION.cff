@@ -1,0 +1,43 @@
+cff-version: 1.2.0
+message: "If you use phenocal, please cite the AIS 2026 paper."
+title: "phenocal"
+abstract: "Genome-anchored calibration of a continuous phenotype across cohorts/batches, with uncertainty-propagated probabilistic labels."
+type: software
+license: MIT
+repository-code: "https://github.com/genpat-it/phenocal"
+version: 0.1.1
+authors:
+  - family-names: "de Ruvo"
+    given-names: "Andrea"
+    orcid: "https://orcid.org/0000-0001-6836-3455"
+  - family-names: "Castelli"
+    given-names: "Pierluigi"
+    orcid: "https://orcid.org/0000-0001-6518-1752"
+  - family-names: "Di Pasquale"
+    given-names: "Adriano"
+    orcid: "https://orcid.org/0000-0002-9328-3972"
+  - family-names: "Radomski"
+    given-names: "Nicolas"
+    orcid: "https://orcid.org/0000-0002-7480-4197"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.21461769"
+    description: "Reproducibility archive of the AIS 2026 paper"
+preferred-citation:
+  type: conference-paper
+  title: "PhenoCal: Natural-Control Label Calibration for Cross-Cohort Machine Learning"
+  authors:
+    - family-names: "de Ruvo"
+      given-names: "Andrea"
+    - family-names: "Castelli"
+      given-names: "Pierluigi"
+    - family-names: "Di Pasquale"
+      given-names: "Adriano"
+    - family-names: "Radomski"
+      given-names: "Nicolas"
+  conference:
+    name: "12th International Artificial Intelligence Symposium (AIS 2026)"
+  collection-title: "Lecture Notes in Computer Science"
+  publisher:
+    name: "Springer Nature"
+  year: 2026

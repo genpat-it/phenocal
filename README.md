@@ -1,5 +1,14 @@
 # phenocal
 
+[![CI](https://github.com/genpat-it/phenocal/actions/workflows/ci.yml/badge.svg)](https://github.com/genpat-it/phenocal/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/genpat-it/phenocal?sort=semver)](https://github.com/genpat-it/phenocal/releases/latest)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fgenpat--it%2Fphenocal-2496ED?logo=docker&logoColor=white)](https://github.com/genpat-it/phenocal/pkgs/container/phenocal)
+[![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macOS%20%7C%20windows-lightgrey)](https://github.com/genpat-it/phenocal/releases/latest)
+[![Dependencies](https://img.shields.io/badge/dependencies-zero-brightgreen)](Cargo.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+[![AIS 2026](https://img.shields.io/badge/AIS%202026-Springer%20LNCS-informational)](#citation)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21461769.svg)](https://doi.org/10.5281/zenodo.21461769)
+
 **Genome-anchored calibration of a continuous phenotype across cohorts/batches,
 with uncertainty-propagated probabilistic labels.**
 
@@ -20,12 +29,47 @@ biological phenotype, so the difference in their measured values estimates the
 difference in cohort/protocol offset — the biology approximately cancels (exactly at zero genomic distance, approximately for near-clones). Offsets are fitted on a
 comparison graph by weighted least squares; one cohort is the anchor (δ=0).
 
-## Build
+## Installation
+
+**Prebuilt binary** (Linux x86_64/arm64, macOS Intel/Apple Silicon; static, no
+dependencies; the download is verified against its SHA-256):
 
 ```bash
-cargo build --release
-# binary: target/release/phenocal
+curl -fsSL https://raw.githubusercontent.com/genpat-it/phenocal/main/install.sh | sh
 ```
+
+It installs `phenocal` into `~/.local/bin`; set `PHENOCAL_INSTALL_DIR` to change
+the directory and `PHENOCAL_VERSION=v0.1.1` to pin a release. Windows users and
+anyone preferring a manual install can download the archive for their platform
+from the [latest release](https://github.com/genpat-it/phenocal/releases/latest).
+
+**Docker** (linux/amd64 and linux/arm64; also usable from Nextflow and other
+workflow managers):
+
+```bash
+docker pull ghcr.io/genpat-it/phenocal:latest
+docker run --rm -v "$PWD:/data" ghcr.io/genpat-it/phenocal \
+    --phenotypes pheno.tsv --pairs pairs.tsv --out result
+```
+
+The image also ships the toy example in `/opt/phenocal/examples`.
+
+**Cargo** (any platform with a Rust toolchain):
+
+```bash
+cargo install --git https://github.com/genpat-it/phenocal --tag v0.1.1
+```
+
+**From source:**
+
+```bash
+git clone https://github.com/genpat-it/phenocal && cd phenocal
+cargo build --release        # binary: target/release/phenocal
+```
+
+The code exactly as used in the AIS 2026 paper is frozen at the git tag
+[`ais2026`](https://github.com/genpat-it/phenocal/tree/ais2026); v0.1.1 adds
+packaging only and gives byte-identical results.
 
 ## Quick start (synthetic toy)
 
@@ -97,7 +141,7 @@ phenocal \
 | `--dashboard <FILE>` | also write the interactive HTML report (open locally) | off |
 | `--trace <FILE>` | also write a step-by-step **mathematical trace** in Markdown (renders on GitHub, no compilation) | off |
 
-Run `phenocal --help` for the same list.
+Run `phenocal --help` for the same list and `phenocal --version` for the version.
 
 ### Cluster-effective inference (`--clusters`)
 

@@ -1,9 +1,16 @@
 [package]
 name = "phenocal"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Genome-anchored calibration of a continuous phenotype across cohorts/batches, with uncertainty-propagated probabilistic labels."
 license = "MIT"
+authors = ["Andrea de Ruvo <andrea.deruvo@gssi.it>"]
+repository = "https://github.com/genpat-it/phenocal"
+homepage = "https://github.com/genpat-it/phenocal"
+readme = "README.md"
+keywords = ["bioinformatics", "calibration", "batch-effect", "phenotype", "genomics"]
+categories = ["science", "command-line-utilities"]
+exclude = ["/example", "/ais2026", "/.github"]
 
 # Zero external dependencies: self-contained, builds offline.
 [dependencies]
@@ -11,3 +18,5 @@ license = "MIT"
 [profile.release]
 opt-level = 3
 lto = true
+codegen-units = 1
+strip = true

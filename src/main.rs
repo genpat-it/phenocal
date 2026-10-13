@@ -107,6 +107,7 @@ OPTIONS:
     --quick               Offsets + sigma + edges only; skip harmonised, labels
                           and cutoff (fast path for large benchmarks).
     -h, --help            Show this help
+    -V, --version         Print the version
 "
     );
     exit(2);
@@ -213,6 +214,10 @@ fn parse_args() -> Args {
             "--dashboard" => a.dashboard = Some(it.next().unwrap_or_else(|| usage())),
             "--trace" => a.trace = Some(it.next().unwrap_or_else(|| usage())),
             "-h" | "--help" => usage(),
+            "-V" | "--version" => {
+                println!("phenocal {}", env!("CARGO_PKG_VERSION"));
+                exit(0);
+            }
             _ => {
                 eprintln!("Unknown argument: {arg}");
                 usage();
