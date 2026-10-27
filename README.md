@@ -120,8 +120,9 @@ detected from the header:
 *Distance matrix*, a square TSV whose first header cell is any label and whose
 other header cells, and first cell of each row, are the sample names (same
 order in rows and columns). This is the layout of the chewBBACA allelic
-distance matrix, for cgMLST and wgMLST alike, and of cgmlst-dists and cgDist,
-so their output can be passed as it is:
+distance matrix, for cgMLST and wgMLST alike, of ReporTree
+(`<prefix>_dist_hamming.tsv`), cgmlst-dists and cgDist, so their output can be
+passed as it is:
 
 ```
 FILE        S1.fasta  S2.fasta  S3.fasta
