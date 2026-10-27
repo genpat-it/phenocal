@@ -92,6 +92,8 @@ svg .node { stroke: var(--fg); stroke-width: 1.2; }
 svg .nA { fill: var(--nA); } svg .nB { fill: var(--nB); } svg .nC { fill: var(--nC); }
 svg .curve { fill: none; stroke: var(--accent); stroke-width: 2.5; }
 svg .tail { fill: var(--accent-soft); stroke: none; }
+svg .sens { fill: var(--s1); } svg .tol { fill: var(--s2); }
+svg .barl { font-size: 13px; font-weight: 600; fill: #fff; }
 </style>
 </head>
 <body>
@@ -120,6 +122,7 @@ svg .tail { fill: var(--accent-soft); stroke: none; }
     <li><a href="#graph">Solving the graph</a></li>
     <li><a href="#uncertainty">Uncertainty</a></li>
     <li><a href="#labels">Harmonised values and labels</a></li>
+    <li><a href="#ml">Why it matters for machine learning</a></li>
     <li><a href="#example">Worked example</a></li>
     <li><a href="#limits">Assumptions and limits</a></li>
     <li><a href="#cite">Citation</a></li>
@@ -479,7 +482,103 @@ Finally, phenocal estimates a data-driven cutoff on the harmonised scale with tw
 methods that bracket it: the antimode of a kernel density estimate and the crossover
 of a two-component Gaussian mixture, with a bootstrap interval.</p>
 
-<h2 id="example"><span class="n">4</span>Worked example</h2>
+<h2 id="ml"><span class="n">4</span>Why it matters for machine learning</h2>
+<p>phenocal is a pre-processing step for supervised learning on pooled cohorts: it fixes
+the <em>target</em>, the phenotype, before any model sees it. Its inputs are the
+phenotypes, the cohort labels and the genomic distances, never the model's features or the
+model itself, so it can sit in front of any classifier or regressor.</p>
+
+<pre class="mermaid">flowchart LR
+    R[/"Raw phenotypes&lt;br/>+ cohort labels"/] --> PC["phenocal"]
+    G[/"Genomic distances"/] --> PC
+    PC --> L1["Calibrated labels&lt;br/>hard or P(T)"]
+    PC --> L2["Harmonised&lt;br/>log values"]
+    F[/"Model features&lt;br/>genes, alleles, k-mers…"/] --> M1
+    F --> M2
+    L1 --> M1["Classifier"]
+    L2 --> M2["Regressor"]</pre>
+
+<h3 id="classifier"><span class="n">4.1</span>Classifiers</h3>
+<p>A classifier needs a label, usually obtained by cutting the phenotype at a threshold
+(for example tolerant if MIC ≥ 1.25 mg/L). With raw values, a cohort whose protocol reads
+high falls entirely above the threshold and a cohort that reads low falls mostly below
+it. Two things then go wrong:</p>
+<ul>
+<li><b>The model learns the cohort.</b> Cohorts usually sample different populations, so the
+genome tells which cohort an isolate comes from. A classifier trained on pooled raw labels
+can look accurate by recognising the cohort rather than the trait, and nothing in a random
+cross-validation reveals it.</li>
+<li><b>The honest test is impossible.</b> The real question is whether the model transfers to
+cohorts it was not trained on. If the held-out cohorts contain a single class, balanced
+accuracy and ROC-AUC are undefined: the endpoint cannot be evaluated at all.</li>
+</ul>
+
+<figure>
+<div class="fig"><svg viewBox="0 0 720 210" role="img" aria-labelledby="f6t">
+<title id="f6t">Class composition of the cross-cohort test set before and after calibration</title>
+<text class="panel" x="10" y="20">Test cohorts Cooper + He (312 isolates), threshold 1.25 mg/L</text>
+<text class="lab" x="178" y="72" text-anchor="end">Raw labels</text>
+<rect class="tol" x="190.0" y="50" width="500.0" height="34" rx="3"/>
+<text class="barl" x="440.0" y="72" text-anchor="middle">312 tolerant</text>
+<text class="tick" x="190" y="102">single class: balanced accuracy and AUC undefined</text>
+<text class="lab" x="178" y="152" text-anchor="end">Calibrated labels</text>
+<rect class="sens" x="190" y="130" width="270.8" height="34" rx="3"/>
+<text class="barl" x="325.4" y="152" text-anchor="middle">169 sensitive</text>
+<rect class="tol" x="460.8" y="130" width="229.2" height="34" rx="3"/>
+<text class="barl" x="575.4" y="152" text-anchor="middle">143 tolerant</text>
+<text class="tick" x="190" y="182">two classes: ROC-AUC 0.999 (wgMLST), 0.748 (cgMLST)</text>
+</svg></div>
+<figcaption><b>Figure 6.</b> The case of the AIS 2026 paper: benzalkonium-chloride MICs of
+<i>Listeria monocytogenes</i> from five laboratory cohorts, trained on three (Palma, Kragh,
+Ivanova) and tested on the other two (Cooper, He). With raw labels all 312 test isolates
+are tolerant, so the test cannot be scored. After calibration the same split, threshold and
+learner give a two-class test set.</figcaption>
+</figure>
+
+<p>On that restored endpoint the paper reports, for a gradient-boosted tree classifier on
+allelic profiles, a forward ROC-AUC of 0.999 with wgMLST features and 0.748 with cgMLST
+features, and 0.880 in the reverse direction. The endpoint stays evaluable across the
+pre-declared thresholds 0.6–2.0 mg/L, with the AUC moving only mildly with the cutoff, and
+the result is not leakage: it falls to chance with permuted training
+labels and with a cohort-only baseline (AUC 0.50), and is unchanged when the isolates used
+as calibration twins are removed from training. These values show that the endpoint has
+become evaluable; they are not proof that the calibrated MICs are the biological truth.</p>
+
+<p>The probabilistic labels \(P_i(c)\) give two more options beyond the hard label: use them
+as soft targets or sample weights, or train only on isolates whose label is stable (for
+example \(P_i(c) < 0.1\) or \(> 0.9\)) and leave the uncertain ones out. Isolates of the anchor
+cohort always get 0 or 1; in other cohorts the probability departs from 0 or 1 only near
+the threshold, and more so the less certain the cohort offset.</p>
+
+<h3 id="regressor"><span class="n">4.2</span>Regressors</h3>
+<p>To predict the phenotype itself, for example the MIC rather than a tolerant/sensitive
+call, the target is the log value \(y_i = \mu_i + \delta_{c(i)} + \varepsilon_i\). Trained
+on raw values, a regressor has to explain the offsets \(\delta_c\) too, and because cohort
+and genome are correlated it attributes them to the genome. Its predictions then mix
+biology with protocol, are on no particular laboratory's scale, and carry the offset of
+whichever cohort a new isolate resembles; prediction errors measured across cohorts are
+inflated by the offsets rather than reflecting the biology.</p>
+<p>Trained on the harmonised log values \(y_i - \hat\delta_{c(i)}\), the regressor sees one
+scale, the anchor's, and only biology and noise remain to explain. The calibration
+uncertainty can be carried along: \(s_{c}^2\), the variance of the cohort offset, adds to
+the noise of every target in cohort \(c\), so weights such as
+\(1/(\sigma_c^2 + s_c^2)\) let well-calibrated cohorts count more. The paper evaluates the
+classification endpoint; for regression the same argument holds, but we report no
+regression results here.</p>
+
+<h3 id="whynot"><span class="n">4.3</span>Why not correct the features, or use a bigger model?</h3>
+<ul>
+<li><b>The shift is in the labels, not in the features.</b> Batch corrections such as ComBat act on
+the features. Applied to the phenotype as a per-cohort mean-centering, they remove every
+difference between cohort means, including the real biological ones when cohorts sample
+different populations, and over-correct. phenocal estimates the offset only from isolates
+whose biology is held fixed by the genome.</li>
+<li><b>Model capacity does not replace calibration.</b> In the paper's simulations, larger
+neural models trained on uncalibrated labels do no better than logistic regression, while
+calibration improves every learner tested.</li>
+</ul>
+
+<h2 id="example"><span class="n">5</span>Worked example</h2>
 <p>The toy example is in the repository and runs in a fraction of a second:</p>
 <pre><code>phenocal --phenotypes examples/toy_phenotypes.tsv \
          --pairs examples/toy_distance_matrix.tsv \
@@ -504,7 +603,7 @@ the repository tests check that the two inputs give identical outputs. Add
 <code>--trace toy.md</code> for the same calculations written out step by step with the
 actual numbers.</p>
 
-<h2 id="limits"><span class="n">5</span>Assumptions and limits</h2>
+<h2 id="limits"><span class="n">6</span>Assumptions and limits</h2>
 <ul>
 <li><b>Identical genomes share their biology.</b> Isolates at small allelic distance are
 assumed to have the same true phenotype. The adaptive bound τ and the λ·τ term limit the
@@ -522,7 +621,7 @@ protocol offset and would be calibrated away. Biology specific to some strains d
 have this problem: it makes the log-ratios grow with genomic distance, which is what the
 bound τ detects.</div>
 
-<h2 id="cite"><span class="n">6</span>Citation</h2>
+<h2 id="cite"><span class="n">7</span>Citation</h2>
 <p>de Ruvo A, Castelli P, Di Pasquale A, Radomski N. <i>PhenoCal: Natural-Control Label
 Calibration for Cross-Cohort Machine Learning.</i> 12th International Artificial
 Intelligence Symposium (AIS 2026), Springer Lecture Notes in Computer Science.

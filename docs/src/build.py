@@ -203,6 +203,41 @@ def fig_label():
     return "\n".join(o), p
 
 
+# ---------------------------------------------------------------- figure 6
+def fig_ml():
+    # AIS 2026 paper, forward split (train Palma+Kragh+Ivanova, test Cooper+He),
+    # threshold 1.25 mg/L: raw labels 0 sensitive / 312 tolerant, calibrated 169 / 143
+    bars = [("Raw labels", 0, 312, "single class: balanced accuracy and AUC undefined"),
+            ("Calibrated labels", 169, 143, "two classes: ROC-AUC 0.999 (wgMLST), 0.748 (cgMLST)")]
+    x0, x1, n = 190, 690, 312
+    W = lambda k: k / n * (x1 - x0)
+    o = ['<svg viewBox="0 0 720 210" role="img" aria-labelledby="f6t">',
+         '<title id="f6t">Class composition of the cross-cohort test set before and after calibration</title>']
+    o.append('<text class="panel" x="10" y="20">Test cohorts Cooper + He (312 isolates), threshold 1.25 mg/L</text>')
+    for k, (name, sens, tol, note) in enumerate(bars):
+        y = 50 + k * 80
+        o.append(f'<text class="lab" x="{x0 - 12}" y="{y + 22}" text-anchor="end">{name}</text>')
+        if sens:
+            o.append(f'<rect class="sens" x="{x0}" y="{y}" width="{W(sens):.1f}" height="34" rx="3"/>')
+            o.append(f'<text class="barl" x="{x0 + W(sens) / 2:.1f}" y="{y + 22}" text-anchor="middle">{sens} sensitive</text>')
+        o.append(f'<rect class="tol" x="{x0 + W(sens):.1f}" y="{y}" width="{W(tol):.1f}" height="34" rx="3"/>')
+        o.append(f'<text class="barl" x="{x0 + W(sens) + W(tol) / 2:.1f}" y="{y + 22}" text-anchor="middle">{tol} tolerant</text>')
+        o.append(f'<text class="tick" x="{x0}" y="{y + 52}">{note}</text>')
+    o.append("</svg>")
+    return "\n".join(o)
+
+
+MLFLOW = """flowchart LR
+    R[/"Raw phenotypes<br/>+ cohort labels"/] --> PC["phenocal"]
+    G[/"Genomic distances"/] --> PC
+    PC --> L1["Calibrated labels<br/>hard or P(T)"]
+    PC --> L2["Harmonised<br/>log values"]
+    F[/"Model features<br/>genes, alleles, k-mers…"/] --> M1
+    F --> M2
+    L1 --> M1["Classifier"]
+    L2 --> M2["Regressor"]"""
+
+
 FLOW = """flowchart TD
     P[/"Phenotypes<br/>sample · value · cohort"/] --> X
     D[/"Genomic distances<br/>pair table or distance matrix"/] --> X
@@ -228,6 +263,8 @@ html = (html.replace("@@FIG1@@", fig_problem())
             .replace("@@FIG3@@", fig_tau())
             .replace("@@FIG4@@", fig_graph())
             .replace("@@FIG5@@", f5)
+            .replace("@@FIG6@@", fig_ml())
+            .replace("@@MLFLOW@@", esc(MLFLOW))
             .replace("@@FLOW@@", esc(FLOW))
             .replace("@@ROWS@@", rows_data)
             .replace("@@PS2B@@", f"{p_s2b:.2f}"))
