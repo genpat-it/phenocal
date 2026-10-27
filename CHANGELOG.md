@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.2] - 2026-10-27
+
+### Added
+- `--pairs` also accepts a square distance matrix: the chewBBACA allelic
+  distance matrix (cgMLST or wgMLST; `distance_matrix.tsv` upper-triangular or
+  `distance_matrix_symmetric.tsv`) and the output of cgmlst-dists and cgDist,
+  including triangular matrices with a zero-filled half. The layout is
+  detected from the header (`--pairs-format` forces it). Matrix names are
+  matched to phenotype ids exactly, without the FASTA extension or by unique id
+  prefix (`S1_shovill.fasta` → `S1`).
+- `examples/toy_distance_matrix.tsv`.
+- Published on crates.io: `cargo install phenocal`.
+
+On 2,099 *L. monocytogenes* genomes (cgMLST and wgMLST), every matrix layout
+gives outputs byte-identical to the equivalent pair table, and pair tables give
+outputs byte-identical to 0.1.1.
+
 ## [0.1.1] - 2026-10-13
 
 Packaging release: results are byte-identical to 0.1.0 and to the `ais2026` tag.

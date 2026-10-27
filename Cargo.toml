@@ -1,6 +1,6 @@
 [package]
 name = "phenocal"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Genome-anchored calibration of a continuous phenotype across cohorts/batches, with uncertainty-propagated probabilistic labels."
 license = "MIT"

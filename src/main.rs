@@ -15,6 +15,7 @@ mod calib;
 mod cutoff;
 mod dashboard;
 mod linalg;
+mod pairs;
 mod rng;
 mod trace;
 
@@ -45,6 +46,7 @@ struct Args {
     quick: bool,     // offsets + edges + sigma only; skip harmonised/labels/cutoff
     no_cutoff: bool, // skip only the data-driven cutoff (keep harmonised + labels)
     clusters: Option<String>, // sample->cluster TSV; enables cluster-effective bootstrap
+    pairs_format: String, // auto | long | matrix
 }
 
 fn usage() -> ! {
@@ -56,9 +58,15 @@ USAGE:
 
 REQUIRED:
     --phenotypes <FILE>   TSV with header columns: sample  value  cohort
-    --pairs <FILE>        TSV with header columns: sample_i  sample_j  distance
-                          (genomic distance; within- and cross-cohort allowed,
-                           only cross-cohort pairs are used)
+    --pairs <FILE>        Genomic distances (within- and cross-cohort allowed,
+                          only cross-cohort pairs are used), either
+                          - long TSV with header columns: sample_i  sample_j  distance
+                          - square distance matrix, e.g. chewBBACA cgMLST/wgMLST
+                            distance_matrix.tsv (upper-triangular) or
+                            distance_matrix_symmetric.tsv, cgmlst-dists, cgDist;
+                            names match phenotype samples exactly, without the
+                            FASTA extension, or by unique id prefix
+                            (S1_shovill.fasta -> S1)
     --out <PREFIX>        Output prefix. Writes:
                             <prefix>.offsets.tsv    cohort offsets + 95% CrI
                             <prefix>.sigma.tsv      per-cohort resolution sigma_c
@@ -106,6 +114,8 @@ OPTIONS:
                           Use with --thresholds to supply a known cutoff.
     --quick               Offsets + sigma + edges only; skip harmonised, labels
                           and cutoff (fast path for large benchmarks).
+    --pairs-format <F>    auto | long | matrix (default auto: long when the header
+                          has sample_i, sample_j and distance, matrix otherwise)
     -h, --help            Show this help
     -V, --version         Print the version
 "
@@ -135,6 +145,7 @@ fn parse_args() -> Args {
         quick: false,
         no_cutoff: false,
         clusters: None,
+        pairs_format: "auto".to_string(),
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -147,6 +158,12 @@ fn parse_args() -> Args {
             "--quick" => a.quick = true,
             "--no-cutoff" => a.no_cutoff = true,
             "--clusters" => a.clusters = Some(it.next().unwrap_or_else(|| usage())),
+            "--pairs-format" => {
+                a.pairs_format = it.next().unwrap_or_else(|| usage());
+                if !matches!(a.pairs_format.as_str(), "auto" | "long" | "matrix") {
+                    usage();
+                }
+            }
             "--min-support" => {
                 a.min_support = it
                     .next()
@@ -359,12 +376,6 @@ fn main() {
         exit(1);
     });
 
-    // read pairs -> cross-cohort Pair list
-    let lines = read_lines(&args.pairs);
-    let header: Vec<&str> = lines[0].split('\t').collect();
-    let ci = col(&header, &["sample_i", "acc_i", "i"]);
-    let cj = col(&header, &["sample_j", "acc_j", "j"]);
-    let cd = col(&header, &["distance", "dist", "d"]);
     // optional sample -> clonal-cluster map (for cluster-effective bootstrap)
     let cluster_of: HashMap<String, String> = match &args.clusters {
         Some(path) => {
@@ -387,32 +398,20 @@ fn main() {
         None => HashMap::new(),
     };
 
+    // read pairs -> cross-cohort Pair list
     let mut pairs: Vec<Pair> = Vec::new();
     let mut n_cross = 0usize;
-    for line in &lines[1..] {
-        if line.trim().is_empty() {
-            continue;
-        }
-        let f: Vec<&str> = line.split('\t').collect();
-        if f.len() <= ci.max(cj).max(cd) {
-            continue;
-        }
-        let si = f[ci].trim();
-        let sj = f[cj].trim();
-        let dist: f64 = match f[cd].trim().parse() {
-            Ok(v) => v,
-            Err(_) => continue,
-        };
+    let mut add_pair = |si: &str, sj: &str, dist: f64| {
         let (ca, cb) = match (ph.cohort.get(si), ph.cohort.get(sj)) {
             (Some(a), Some(b)) => (a, b),
-            _ => continue,
+            _ => return,
         };
         if ca == cb {
-            continue; // within-cohort: no cross-protocol offset to estimate
+            return; // within-cohort: no cross-protocol offset to estimate
         }
         let (yi, yj) = match (ph.log_value.get(si), ph.log_value.get(sj)) {
             (Some(a), Some(b)) => (*a, *b),
-            _ => continue,
+            _ => return,
         };
         let cluster = cluster_of
             .get(si)
@@ -431,6 +430,84 @@ fn main() {
             cluster,
         });
         n_cross += 1;
+    };
+    let first_line = {
+        use std::io::BufRead;
+        let f = fs::File::open(&args.pairs).unwrap_or_else(|e| {
+            eprintln!("Cannot read {}: {e}", args.pairs);
+            exit(1);
+        });
+        let mut l = String::new();
+        std::io::BufReader::new(f).read_line(&mut l).ok();
+        l
+    };
+    let layout = match args.pairs_format.as_str() {
+        "long" => pairs::Layout::Long,
+        "matrix" => pairs::Layout::Matrix,
+        _ => pairs::detect(first_line.trim_end_matches(['\r', '\n'])),
+    };
+    match layout {
+        pairs::Layout::Long => {
+            let lines = read_lines(&args.pairs);
+            let header: Vec<&str> = lines[0].split('\t').collect();
+            let ci = col(&header, pairs::LONG_I);
+            let cj = col(&header, pairs::LONG_J);
+            let cd = col(&header, pairs::LONG_D);
+            for line in &lines[1..] {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                let f: Vec<&str> = line.split('\t').collect();
+                if f.len() <= ci.max(cj).max(cd) {
+                    continue;
+                }
+                let dist: f64 = match f[cd].trim().parse() {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+                add_pair(f[ci].trim(), f[cj].trim(), dist);
+            }
+        }
+        pairs::Layout::Matrix => {
+            let st =
+                pairs::read_matrix(&args.pairs, &ph.cohort, &mut add_pair).unwrap_or_else(|e| {
+                    eprintln!("Error: {e}");
+                    exit(1);
+                });
+            let mut how = Vec::new();
+            if st.n_matched_by_extension > 0 {
+                how.push(format!(
+                    "{} without the FASTA extension",
+                    st.n_matched_by_extension
+                ));
+            }
+            if let Some((name, id)) = &st.prefix_example {
+                how.push(format!(
+                    "{} by sample-id prefix, e.g. {name} -> {id}",
+                    st.n_matched_by_prefix
+                ));
+            }
+            eprintln!(
+                "pairs: {} distance matrix, {} samples, {} with a phenotype{}{}",
+                match st.triangle {
+                    pairs::Triangle::Symmetric => "symmetric",
+                    pairs::Triangle::Upper => "upper-triangular",
+                    pairs::Triangle::Lower => "lower-triangular",
+                },
+                st.n_genomes,
+                st.n_matched,
+                if how.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (matched {})", how.join("; "))
+                },
+                if st.n_missing_cells > 0 {
+                    format!(", {} missing distances skipped", st.n_missing_cells)
+                } else {
+                    String::new()
+                }
+            );
+        }
     }
     if n_cross == 0 {
         eprintln!("No usable cross-cohort pairs found.");

@@ -46,6 +46,9 @@ jobs:
           docker run --rm -v "$PWD/examples:/data" -w /tmp phenocal:ci \
             --phenotypes /data/toy_phenotypes.tsv --pairs /data/toy_pairs.tsv \
             --anchor labA --min-support 2 --out /tmp/toy
+          docker run --rm -v "$PWD/examples:/data" -w /tmp phenocal:ci \
+            --phenotypes /data/toy_phenotypes.tsv --pairs /data/toy_distance_matrix.tsv \
+            --anchor labA --min-support 2 --out /tmp/toy_matrix
           docker run --rm --entrypoint "" phenocal:ci /bin/sh -c 'ps >/dev/null && echo "ps ok"'
 
   installer:

@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/genpat-it/phenocal/actions/workflows/ci.yml/badge.svg)](https://github.com/genpat-it/phenocal/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/genpat-it/phenocal?sort=semver)](https://github.com/genpat-it/phenocal/releases/latest)
+[![crates.io](https://img.shields.io/crates/v/phenocal.svg)](https://crates.io/crates/phenocal)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fgenpat--it%2Fphenocal-2496ED?logo=docker&logoColor=white)](https://github.com/genpat-it/phenocal/pkgs/container/phenocal)
 [![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macOS%20%7C%20windows-lightgrey)](https://github.com/genpat-it/phenocal/releases/latest)
 [![Dependencies](https://img.shields.io/badge/dependencies-zero-brightgreen)](Cargo.toml)
@@ -39,7 +40,7 @@ curl -fsSL https://raw.githubusercontent.com/genpat-it/phenocal/main/install.sh 
 ```
 
 It installs `phenocal` into `~/.local/bin`; set `PHENOCAL_INSTALL_DIR` to change
-the directory and `PHENOCAL_VERSION=v0.1.1` to pin a release. Windows users and
+the directory and `PHENOCAL_VERSION=v0.1.2` to pin a release. Windows users and
 anyone preferring a manual install can download the archive for their platform
 from the [latest release](https://github.com/genpat-it/phenocal/releases/latest).
 
@@ -49,15 +50,16 @@ workflow managers):
 ```bash
 docker pull ghcr.io/genpat-it/phenocal:latest
 docker run --rm -v "$PWD:/data" ghcr.io/genpat-it/phenocal \
-    --phenotypes pheno.tsv --pairs pairs.tsv --out result
+    --phenotypes pheno.tsv --pairs distance_matrix.tsv --out result
 ```
 
 The image also ships the toy example in `/opt/phenocal/examples`.
 
-**Cargo** (any platform with a Rust toolchain):
+**Cargo** (any platform with a Rust toolchain), from
+[crates.io](https://crates.io/crates/phenocal):
 
 ```bash
-cargo install --git https://github.com/genpat-it/phenocal --tag v0.1.1
+cargo install phenocal
 ```
 
 **From source:**
@@ -68,8 +70,9 @@ cargo build --release        # binary: target/release/phenocal
 ```
 
 The code exactly as used in the AIS 2026 paper is frozen at the git tag
-[`ais2026`](https://github.com/genpat-it/phenocal/tree/ais2026); v0.1.1 adds
-packaging only and gives byte-identical results.
+[`ais2026`](https://github.com/genpat-it/phenocal/tree/ais2026). Later releases
+add packaging and input formats; on the same input they give byte-identical
+results (see the [changelog](CHANGELOG.md)).
 
 ## Quick start (synthetic toy)
 
@@ -90,7 +93,9 @@ labC   5.01x  [2.64, 9.26]
 
 ## Inputs
 
-Two TSV files (headers are matched case-insensitively; common aliases accepted).
+Two TSV files: the phenotypes, and the genomic distances either as a pair
+table or as a distance matrix (headers are matched case-insensitively; common
+aliases accepted).
 
 **Phenotypes** (`--phenotypes`): one row per sample.
 
@@ -100,14 +105,44 @@ Two TSV files (headers are matched case-insensitively; common aliases accepted).
 | `value`           | mic, phenotype         | raw phenotype (log10 by default) |
 | `cohort`          | author, batch, study   | cohort / batch label             |
 
-**Pairs** (`--pairs`): genomic distances between sample pairs (within- and
-cross-cohort allowed; only cross-cohort pairs are used).
+**Distances** (`--pairs`): genomic distances between samples (within- and
+cross-cohort allowed; only cross-cohort pairs are used), in either layout,
+detected from the header:
+
+*Pair table*, one row per pair:
 
 | column      | aliases        | meaning                  |
 |-------------|----------------|--------------------------|
 | `sample_i`  | acc_i, i       | first sample             |
 | `sample_j`  | acc_j, j       | second sample            |
 | `distance`  | dist, d        | genomic distance         |
+
+*Distance matrix*, a square TSV whose first header cell is any label and whose
+other header cells, and first cell of each row, are the sample names (same
+order in rows and columns). This is the layout of the chewBBACA allelic
+distance matrix, for cgMLST and wgMLST alike, and of cgmlst-dists and cgDist,
+so their output can be passed as it is:
+
+```
+FILE        S1.fasta  S2.fasta  S3.fasta
+S1.fasta    0         3         7
+S2.fasta              0         5
+S3.fasta                        0
+```
+
+- Symmetric matrices and triangular ones are accepted, with the other half
+  empty (chewBBACA `distance_matrix.tsv`) or filled with zeros (cgmlst-dists
+  `--matrix-format lower-tri`/`upper-tri`); each pair is read once. A matrix
+  whose two halves disagree is rejected.
+- Matrix names are matched to the phenotype `sample` ids exactly, without the
+  FASTA extension (`S1.fasta` → `S1`), or by unique id prefix
+  (`S1_shovill.fasta` → `S1`, the assembler suffix kept by chewBBACA from the
+  file name); the run reports how many names matched each way. Samples without
+  a phenotype are ignored; `NA` or empty cells are skipped.
+- The matrix is streamed, so memory does not grow with its size beyond the
+  cross-cohort pairs kept. `examples/toy_distance_matrix.tsv` is the toy in this
+  layout and gives the same results as `examples/toy_pairs.tsv`.
+- `--pairs-format long|matrix` forces a layout instead of detecting it.
 
 ## Run
 
@@ -137,6 +172,7 @@ phenocal \
 | `--thresholds <list>` | comma-separated tolerance cutoffs (raw scale) | 0.75,1.0,1.25,1.5,2.0 |
 | `--clusters <FILE>` | TSV `sample<TAB>cluster` of clonal-cluster ids; enables the **cluster-effective** inference (cluster-weighted point + cluster-resampled 95% interval), the preferred summary when near-clonal pairs are nested in clusters | off (pair-level only) |
 | `--no-cutoff` | skip the (costly) data-driven cutoff estimation; still writes harmonised + labels | off |
+| `--pairs-format <auto\|long\|matrix>` | layout of `--pairs` (pair table or distance matrix) | auto (from the header) |
 | `--seed <S>` | RNG seed | 20260603 |
 | `--dashboard <FILE>` | also write the interactive HTML report (open locally) | off |
 | `--trace <FILE>` | also write a step-by-step **mathematical trace** in Markdown (renders on GitHub, no compilation) | off |
