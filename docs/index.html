@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>phenocal — how the calibration works</title>
+<meta name="description" content="phenocal calibrates a phenotype measured by different laboratories, using genetically identical isolates as natural controls.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\(',right:'\\)',display:false}]})"></script>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1d2129; --muted: #5d6573; --line: #d9dce2; --soft: #f0efe9;
+  --accent: #2458a6; --accent-soft: #e3ebf7; --warn: #b4530a;
+  --s1: #2a7f62; --s2: #c46a1b; --s3: #6b4fa8;
+  --a1: #9fb8d8; --a2: #e3c48f; --a3: #b9d3b0;
+  --nA: #dfe9f6; --nB: #f6e7d6; --nC: #e9e2f4;
+  --code: #f2f1ec;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15181d; --fg: #e6e8ec; --muted: #9aa3b2; --line: #343a45; --soft: #1d2128;
+    --accent: #7fa8e6; --accent-soft: #1f2b3d; --warn: #f0a35e;
+    --s1: #5cc29b; --s2: #ee9b52; --s3: #a993e0;
+    --a1: #4f6f99; --a2: #9a7a45; --a3: #5d8452;
+    --nA: #22314a; --nB: #3f2e1d; --nC: #33284a;
+    --code: #1f232a;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 17px/1.62 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
+main { max-width: 780px; margin: 0 auto; padding: 0 20px 80px; }
+header { max-width: 780px; margin: 0 auto; padding: 56px 20px 8px; }
+h1 { font: 600 2.4rem/1.15 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0 0 .3em; letter-spacing: -.01em; }
+h1 code { font: inherit; background: none; padding: 0; }
+.lede { font-size: 1.2rem; color: var(--muted); margin: 0 0 1.2em; }
+h2 { font: 600 1.45rem/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 2.6em 0 .6em;
+  padding-top: .6em; border-top: 1px solid var(--line); }
+h3 { font: 600 1.1rem/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 2em 0 .4em; }
+h2 .n, h3 .n { color: var(--accent); margin-right: .35em; }
+a { color: var(--accent); }
+p, li { hyphens: auto; }
+.mermaid p, .mermaid span, .mermaid div { hyphens: manual; }
+nav.links { display: flex; flex-wrap: wrap; gap: 8px 18px; font: 500 .95rem system-ui, sans-serif; }
+nav.toc { font: .95rem/1.7 system-ui, sans-serif; background: var(--soft); border-radius: 10px; padding: 14px 20px; margin: 1.6em 0; }
+nav.toc ol { margin: 0; padding-left: 1.3em; columns: 2; column-gap: 32px; }
+@media (max-width: 560px) { nav.toc ol { columns: 1; } h1 { font-size: 2rem; } }
+code, pre { font: .88em/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+code { background: var(--code); padding: .08em .3em; border-radius: 4px; }
+pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+figure { margin: 1.6em 0; }
+figure .fig { overflow-x: auto; }
+figure svg { width: 100%; min-width: 560px; height: auto; display: block; }
+figcaption { font: .9rem/1.5 system-ui, sans-serif; color: var(--muted); margin-top: .5em; }
+.callout { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 12px 18px; border-radius: 0 8px 8px 0; margin: 1.4em 0; }
+.callout.warn { border-color: var(--warn); background: var(--soft); }
+.katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; font: .92rem/1.45 system-ui, sans-serif; margin: 1em 0; width: 100%; }
+th, td { border-bottom: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+th { color: var(--muted); font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.mermaid { background: var(--soft); border-radius: 10px; padding: 14px; text-align: center; overflow-x: auto; }
+footer { max-width: 780px; margin: 0 auto; padding: 24px 20px 60px; color: var(--muted); font: .9rem system-ui, sans-serif; border-top: 1px solid var(--line); }
+
+/* figure styling */
+svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--fg); }
+svg .panel { font-size: 15px; font-weight: 600; }
+svg .lab, svg .nodet { font-size: 14px; font-weight: 600; }
+svg .tick { font-size: 12.5px; fill: var(--muted); }
+svg .note { font-size: 13px; fill: var(--fg); }
+svg .big { font-size: 19px; }
+svg .track { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 4; }
+svg .axis { stroke: var(--muted); stroke-width: 1; }
+svg .st1 { fill: var(--s1); } svg .st2 { fill: var(--s2); } svg .st3 { fill: var(--s3); }
+svg .al1 { fill: var(--a1); } svg .al2 { fill: var(--a2); } svg .al3 { fill: var(--a3); }
+svg .link { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+svg .arrowhead { fill: var(--muted); }
+svg .box { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+svg .usedzone { fill: var(--accent-soft); }
+svg .pt { fill: var(--muted); opacity: .55; }
+svg .pt.used { fill: var(--accent); opacity: 1; }
+svg .tau { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 6 4; }
+svg .med { stroke: var(--accent); stroke-width: 2.5; }
+svg .edge { stroke: var(--muted); stroke-width: 2.5; }
+svg .node { stroke: var(--fg); stroke-width: 1.2; }
+svg .nA { fill: var(--nA); } svg .nB { fill: var(--nB); } svg .nC { fill: var(--nC); }
+svg .curve { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+svg .tail { fill: var(--accent-soft); stroke: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1><code>phenocal</code></h1>
+  <p class="lede">How to compare a phenotype measured by different laboratories, using
+  genetically identical isolates as built-in reference samples.</p>
+  <nav class="links">
+    <a href="https://github.com/genpat-it/phenocal">Source on GitHub</a>
+    <a href="https://github.com/genpat-it/phenocal#installation">Install</a>
+    <a href="https://github.com/genpat-it/phenocal/releases/latest">Latest release</a>
+    <a href="https://doi.org/10.5281/zenodo.21461769">Reproducibility archive (Zenodo)</a>
+    <a href="#cite">Cite</a>
+  </nav>
+</header>
+<main>
+
+<nav class="toc" aria-label="Contents">
+  <ol>
+    <li><a href="#problem">The problem</a></li>
+    <li><a href="#idea">The idea: natural controls</a></li>
+    <li><a href="#glance">The algorithm at a glance</a></li>
+    <li><a href="#pairs">Cross-cohort pairs</a></li>
+    <li><a href="#tau">Which pairs count: τ</a></li>
+    <li><a href="#edge">One number per cohort pair</a></li>
+    <li><a href="#graph">Solving the graph</a></li>
+    <li><a href="#uncertainty">Uncertainty</a></li>
+    <li><a href="#labels">Harmonised values and labels</a></li>
+    <li><a href="#example">Worked example</a></li>
+    <li><a href="#limits">Assumptions and limits</a></li>
+    <li><a href="#cite">Citation</a></li>
+  </ol>
+</nav>
+
+<h2 id="problem"><span class="n">1</span>The problem</h2>
+<p>A phenotype such as a minimum inhibitory concentration (MIC) is often collected
+from several studies or laboratories, each with its own protocol. Protocols differ
+in medium, inoculum or reading, and these differences shift the whole scale: one
+laboratory may read every strain two dilutions higher than another. Pooling the raw
+values then mixes biology with protocol. A classifier trained on the pooled data
+learns which laboratory produced a value, and a threshold such as
+"tolerant if MIC ≥ 1.25 mg/L" means something different in each cohort.</p>
+
+<figure>
+<div class="fig"><svg viewBox="0 0 720 405" role="img" aria-labelledby="f1t">
+<title id="f1t">The same three strains measured by three labs, before and after calibration</title>
+<text class="panel" x="10" y="20">Raw values</text>
+<text class="panel" x="10" y="215">After calibration (harmonised to labA)</text>
+<line class="track" x1="120" x2="700" y1="50" y2="50"/>
+<text class="lab" x="106" y="54" text-anchor="end">labA</text>
+<line class="track" x1="120" x2="700" y1="245" y2="245"/>
+<text class="lab" x="106" y="249" text-anchor="end">labA</text>
+<line class="track" x1="120" x2="700" y1="90" y2="90"/>
+<text class="lab" x="106" y="94" text-anchor="end">labB</text>
+<line class="track" x1="120" x2="700" y1="285" y2="285"/>
+<text class="lab" x="106" y="289" text-anchor="end">labB</text>
+<line class="track" x1="120" x2="700" y1="130" y2="130"/>
+<text class="lab" x="106" y="134" text-anchor="end">labC</text>
+<line class="track" x1="120" x2="700" y1="325" y2="325"/>
+<text class="lab" x="106" y="329" text-anchor="end">labC</text>
+<circle class="st1" cx="216.7" cy="50" r="7"><title>s1_A: 0.5 (raw)</title></circle>
+<circle class="st1" cx="216.7" cy="245" r="7"><title>s1_A: 0.5 (harmonised)</title></circle>
+<circle class="st1" cx="313.3" cy="90" r="7"><title>s1_B: 1.0 (raw)</title></circle>
+<circle class="st1" cx="217.7" cy="285" r="7"><title>s1_B: 0.50368 (harmonised)</title></circle>
+<circle class="st1" cx="441.1" cy="130" r="7"><title>s1_C: 2.5 (raw)</title></circle>
+<circle class="st1" cx="216.5" cy="325" r="7"><title>s1_C: 0.49947 (harmonised)</title></circle>
+<circle class="st2" cx="313.3" cy="50" r="7"><title>s2_A: 1.0 (raw)</title></circle>
+<circle class="st2" cx="313.3" cy="245" r="7"><title>s2_A: 1.0 (harmonised)</title></circle>
+<circle class="st2" cx="410.0" cy="90" r="7"><title>s2_B: 2.0 (raw)</title></circle>
+<circle class="st2" cx="314.4" cy="285" r="7"><title>s2_B: 1.00736 (harmonised)</title></circle>
+<circle class="st2" cx="537.8" cy="130" r="7"><title>s2_C: 5.0 (raw)</title></circle>
+<circle class="st2" cx="313.2" cy="325" r="7"><title>s2_C: 0.99895 (harmonised)</title></circle>
+<circle class="st3" cx="410.0" cy="50" r="7"><title>s3_A: 2.0 (raw)</title></circle>
+<circle class="st3" cx="410.0" cy="245" r="7"><title>s3_A: 2.0 (harmonised)</title></circle>
+<circle class="st3" cx="506.7" cy="90" r="7"><title>s3_B: 4.0 (raw)</title></circle>
+<circle class="st3" cx="411.0" cy="285" r="7"><title>s3_B: 2.01472 (harmonised)</title></circle>
+<circle class="st3" cx="634.5" cy="130" r="7"><title>s3_C: 10.0 (raw)</title></circle>
+<circle class="st3" cx="409.9" cy="325" r="7"><title>s3_C: 1.9979 (harmonised)</title></circle>
+<line class="axis" x1="120" x2="700" y1="160" y2="160"/>
+<line class="axis" x1="120.0" x2="120.0" y1="160" y2="165"/>
+<text class="tick" x="120.0" y="179" text-anchor="middle">0.25</text>
+<line class="axis" x1="216.7" x2="216.7" y1="160" y2="165"/>
+<text class="tick" x="216.7" y="179" text-anchor="middle">0.5</text>
+<line class="axis" x1="313.3" x2="313.3" y1="160" y2="165"/>
+<text class="tick" x="313.3" y="179" text-anchor="middle">1</text>
+<line class="axis" x1="410.0" x2="410.0" y1="160" y2="165"/>
+<text class="tick" x="410.0" y="179" text-anchor="middle">2</text>
+<line class="axis" x1="506.7" x2="506.7" y1="160" y2="165"/>
+<text class="tick" x="506.7" y="179" text-anchor="middle">4</text>
+<line class="axis" x1="603.3" x2="603.3" y1="160" y2="165"/>
+<text class="tick" x="603.3" y="179" text-anchor="middle">8</text>
+<line class="axis" x1="700.0" x2="700.0" y1="160" y2="165"/>
+<text class="tick" x="700.0" y="179" text-anchor="middle">16</text>
+<line class="axis" x1="120" x2="700" y1="355" y2="355"/>
+<line class="axis" x1="120.0" x2="120.0" y1="355" y2="360"/>
+<text class="tick" x="120.0" y="374" text-anchor="middle">0.25</text>
+<line class="axis" x1="216.7" x2="216.7" y1="355" y2="360"/>
+<text class="tick" x="216.7" y="374" text-anchor="middle">0.5</text>
+<line class="axis" x1="313.3" x2="313.3" y1="355" y2="360"/>
+<text class="tick" x="313.3" y="374" text-anchor="middle">1</text>
+<line class="axis" x1="410.0" x2="410.0" y1="355" y2="360"/>
+<text class="tick" x="410.0" y="374" text-anchor="middle">2</text>
+<line class="axis" x1="506.7" x2="506.7" y1="355" y2="360"/>
+<text class="tick" x="506.7" y="374" text-anchor="middle">4</text>
+<line class="axis" x1="603.3" x2="603.3" y1="355" y2="360"/>
+<text class="tick" x="603.3" y="374" text-anchor="middle">8</text>
+<line class="axis" x1="700.0" x2="700.0" y1="355" y2="360"/>
+<text class="tick" x="700.0" y="374" text-anchor="middle">16</text>
+<text class="tick" x="410.0" y="400" text-anchor="middle">phenotype value (log scale)</text>
+<circle class="st1" cx="470" cy="15" r="6"/>
+<text class="tick" x="480" y="19">strain 1</text>
+<circle class="st2" cx="548" cy="15" r="6"/>
+<text class="tick" x="558" y="19">strain 2</text>
+<circle class="st3" cx="626" cy="15" r="6"/>
+<text class="tick" x="636" y="19">strain 3</text>
+</svg></div>
+<figcaption><b>Figure 1.</b> The toy example shipped with phenocal: three strains (colours)
+measured by three laboratories. labB reads every strain 2× higher than labA, labC
+5× higher. After calibration the same strain gets the same value whatever the
+laboratory. Values are those of <code>examples/toy_phenotypes.tsv</code> and of the
+phenocal output.</figcaption>
+</figure>
+
+<p>The usual way to fix the scale is a shared reference: the same control strains
+measured by every laboratory. When the data come from published studies, such
+controls rarely exist. phenocal finds them in the data.</p>
+
+<h2 id="idea"><span class="n">2</span>The idea: natural controls</h2>
+<p>On the logarithmic scale, the measured value of isolate \(i\) in cohort \(c\) is
+modelled as its biology plus a cohort offset plus noise:</p>
+$$ y_{i} = \log_{10}(\text{value}_i) = \mu_i + \delta_{c(i)} + \varepsilon_i . $$
+<p>The offset \(\delta_c\) is multiplicative on the raw scale (a factor \(10^{\delta_c}\)),
+which is how protocol differences such as a dilution shift behave. If two isolates
+measured in different cohorts have the same genome, they have the same biology,
+\(\mu_i = \mu_j\), and the biology cancels in their difference.</p>
+
+<figure>
+<div class="fig"><svg viewBox="0 0 720 230" role="img" aria-labelledby="f2t">
+<title id="f2t">Two isolates with the same genome measured in two labs</title>
+<text class="panel" x="80" y="24">Lab A</text>
+<text class="panel" x="470" y="24">Lab B</text>
+<rect class="al1 " x="80" y="45" width="15" height="18" rx="2"/>
+<rect class="al3 " x="96" y="45" width="15" height="18" rx="2"/>
+<rect class="al2 " x="112" y="45" width="15" height="18" rx="2"/>
+<rect class="al2 " x="128" y="45" width="15" height="18" rx="2"/>
+<rect class="al1 " x="144" y="45" width="15" height="18" rx="2"/>
+<rect class="al3 " x="160" y="45" width="15" height="18" rx="2"/>
+<rect class="al1 " x="176" y="45" width="15" height="18" rx="2"/>
+<rect class="al2 " x="192" y="45" width="15" height="18" rx="2"/>
+<rect class="al3 " x="208" y="45" width="15" height="18" rx="2"/>
+<rect class="al1 " x="224" y="45" width="15" height="18" rx="2"/>
+<rect class="al1 " x="470" y="45" width="15" height="18" rx="2"/>
+<rect class="al3 " x="486" y="45" width="15" height="18" rx="2"/>
+<rect class="al2 " x="502" y="45" width="15" height="18" rx="2"/>
+<rect class="al2 " x="518" y="45" width="15" height="18" rx="2"/>
+<rect class="al1 " x="534" y="45" width="15" height="18" rx="2"/>
+<rect class="al3 " x="550" y="45" width="15" height="18" rx="2"/>
+<rect class="al1 " x="566" y="45" width="15" height="18" rx="2"/>
+<rect class="al2 " x="582" y="45" width="15" height="18" rx="2"/>
+<rect class="al3 " x="598" y="45" width="15" height="18" rx="2"/>
+<rect class="al1 " x="614" y="45" width="15" height="18" rx="2"/>
+<text class="tick" x="80" y="82">isolate i · allele profile</text>
+<text class="tick" x="470" y="82">isolate j · same allele profile (d = 0)</text>
+<path class="link" d="M250 54 L460 54" marker-end="url(#arr)" marker-start="url(#arr)"/>
+<text class="note" x="355" y="45" text-anchor="middle">genomic distance d = 0</text>
+<text class="big" x="80" y="125">y<tspan baseline-shift="sub" font-size="12">i</tspan> = μ + δ<tspan baseline-shift="sub" font-size="12">A</tspan> + ε</text>
+<text class="big" x="470" y="125">y<tspan baseline-shift="sub" font-size="12">j</tspan> = μ + δ<tspan baseline-shift="sub" font-size="12">B</tspan> + ε</text>
+<text class="tick" x="80" y="146">log of the measured value</text>
+<text class="tick" x="470" y="146">same biology μ, other protocol</text>
+<rect class="box" x="170" y="170" width="380" height="46" rx="8"/>
+<text class="big" x="360" y="199" text-anchor="middle">y<tspan baseline-shift="sub" font-size="12">j</tspan> − y<tspan baseline-shift="sub" font-size="12">i</tspan> ≈ δ<tspan baseline-shift="sub" font-size="12">B</tspan> − δ<tspan baseline-shift="sub" font-size="12">A</tspan>   (μ cancels)</text>
+<defs><marker id="arr" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M0 0 L10 5 L0 10 z"/></marker></defs>
+</svg></div>
+<figcaption><b>Figure 2.</b> A pair of genetically identical isolates measured in two
+laboratories is a natural control: the difference of their log values estimates
+the difference of the two cohort offsets.</figcaption>
+</figure>
+
+<p>Large surveillance collections contain many such pairs, because the same clones
+circulate widely and are sampled again and again. Each pair gives a noisy estimate
+of \(\delta_B - \delta_A\); many pairs give a precise one. The genome, read through
+cgMLST or wgMLST allelic distances, plays the role of the reference sample.</p>
+
+<h2 id="glance"><span class="n">3</span>The algorithm at a glance</h2>
+<pre class="mermaid">flowchart TD
+    P[/"Phenotypes&lt;br/>sample · value · cohort"/] --> X
+    D[/"Genomic distances&lt;br/>pair table or distance matrix"/] --> X
+    X["1 · Cross-cohort pairs&lt;br/>genomic distance d&lt;br/>log-ratio s of the two values"] --> T
+    subgraph E["per cohort pair"]
+        T["2 · Adaptive bound τ&lt;br/>smallest d with enough pairs&lt;br/>and a stable median"] --> V
+        V["3 · Edge value Δ&lt;br/>median of s over d ≤ τ&lt;br/>weight 1 / SE²"]
+    end
+    V --> G["4 · Weighted least squares on the comparison graph&lt;br/>cohort offsets δ, anchor δ = 0"]
+    G --> B["5 · Bootstrap the edges and refit&lt;br/>95% credible intervals"]
+    B --> H["6 · Harmonised values&lt;br/>value / 10^δ&lt;br/>P(harmonised ≥ c) per threshold"]
+    H --> C["Cutoff on the harmonised scale&lt;br/>KDE antimode · GMM crossover"]</pre>
+
+<h3 id="pairs"><span class="n">3.1</span>Cross-cohort pairs</h3>
+<p>The inputs are two TSV files: the phenotypes (<code>sample</code>, <code>value</code>,
+<code>cohort</code>) and the genomic distances, either as a pair table
+(<code>sample_i</code>, <code>sample_j</code>, <code>distance</code>) or as a distance matrix
+straight from chewBBACA, ReporTree or cgmlst-dists. phenocal keeps the pairs whose two
+isolates belong to different cohorts. For each, it records the genomic distance \(d\) and
+the log-ratio</p>
+$$ s = y_i - y_j \qquad (i \text{ in cohort } a,\; j \text{ in cohort } b). $$
+<p>Pairs within one cohort carry no information on the offsets and are ignored.</p>
+
+<h3 id="tau"><span class="n">3.2</span>Which pairs count: the adaptive bound τ</h3>
+<p>Isolates at distance 0 are the cleanest controls, but there may be too few of them.
+Isolates a few alleles apart are almost as good, while distant isolates differ in
+biology and would bias the estimate. For every pair of cohorts, phenocal sorts the
+pairs by distance and picks the bound \(\tau\) automatically: the smallest distance at
+which there are at least <code>--min-support</code> pairs with \(d \le \tau\) and the median
+of their log-ratios has not drifted from the median at the smallest distance by more
+than <code>--max-drift</code> units of measurement resolution. Taking the smallest such
+bound keeps the evidence as close to identical genomes as the data allow. If no bound
+satisfies both conditions, all pairs of that cohort pair are used, and the large τ and
+small number of pairs give the edge a low weight.</p>
+
+<figure>
+<div class="fig"><svg viewBox="0 0 720 280" role="img" aria-labelledby="f3t">
+<title id="f3t">Adaptive relatedness bound tau for one pair of cohorts (illustrative)</title>
+<rect class="usedzone" x="70" y="30" width="81.6" height="200"/>
+<line class="axis" x1="70" x2="690" y1="230" y2="230"/>
+<line class="axis" x1="70" x2="70" y1="230" y2="30"/>
+<text class="tick" x="70.0" y="247" text-anchor="middle">0</text>
+<text class="tick" x="135.3" y="247" text-anchor="middle">2</text>
+<text class="tick" x="200.5" y="247" text-anchor="middle">4</text>
+<text class="tick" x="265.8" y="247" text-anchor="middle">6</text>
+<text class="tick" x="331.1" y="247" text-anchor="middle">8</text>
+<text class="tick" x="396.3" y="247" text-anchor="middle">10</text>
+<text class="tick" x="461.6" y="247" text-anchor="middle">12</text>
+<text class="tick" x="526.8" y="247" text-anchor="middle">14</text>
+<text class="tick" x="592.1" y="247" text-anchor="middle">16</text>
+<text class="tick" x="657.4" y="247" text-anchor="middle">18</text>
+<text class="tick" x="62" y="234.0" text-anchor="end">0</text>
+<text class="tick" x="62" y="167.3" text-anchor="end">0.3</text>
+<text class="tick" x="62" y="100.7" text-anchor="end">0.6</text>
+<text class="tick" x="62" y="34.0" text-anchor="end">0.9</text>
+<text class="tick" x="380.0" y="268" text-anchor="middle">genomic distance d (allelic differences)</text>
+<text class="tick" transform="translate(18 130.0) rotate(-90)" text-anchor="middle">log-ratio s</text>
+<circle class="pt used" cx="70.0" cy="161.1" r="5"/>
+<circle class="pt used" cx="70.0" cy="170.0" r="5"/>
+<circle class="pt used" cx="102.6" cy="156.7" r="5"/>
+<circle class="pt used" cx="135.3" cy="165.6" r="5"/>
+<circle class="pt used" cx="135.3" cy="150.0" r="5"/>
+<circle class="pt" cx="167.9" cy="174.4" r="5"/>
+<circle class="pt" cx="200.5" cy="158.9" r="5"/>
+<circle class="pt" cx="233.2" cy="163.3" r="5"/>
+<circle class="pt" cx="265.8" cy="154.4" r="5"/>
+<circle class="pt" cx="298.4" cy="167.8" r="5"/>
+<circle class="pt" cx="331.1" cy="130.0" r="5"/>
+<circle class="pt" cx="363.7" cy="156.7" r="5"/>
+<circle class="pt" cx="396.3" cy="114.4" r="5"/>
+<circle class="pt" cx="428.9" cy="138.9" r="5"/>
+<circle class="pt" cx="461.6" cy="101.1" r="5"/>
+<circle class="pt" cx="494.2" cy="150.0" r="5"/>
+<circle class="pt" cx="526.8" cy="83.3" r="5"/>
+<circle class="pt" cx="559.5" cy="121.1" r="5"/>
+<circle class="pt" cx="592.1" cy="72.2" r="5"/>
+<circle class="pt" cx="624.7" cy="107.8" r="5"/>
+<circle class="pt" cx="657.4" cy="52.2" r="5"/>
+<line class="tau" x1="151.6" x2="151.6" y1="30" y2="230"/>
+<text class="note" x="157.6" y="44">τ = 2</text>
+<line class="med" x1="70" x2="151.6" y1="161.1" y2="161.1"/>
+<text class="note" x="161.6" y="207.8">Δ = median of the 5 shaded pairs = 0.31</text>
+<text class="tick" x="428.9" y="38.9" text-anchor="middle">farther pairs: biology drifts in, not used</text>
+</svg></div>
+<figcaption><b>Figure 3.</b> Choice of τ for one pair of cohorts (illustrative data,
+<code>--min-support 5</code>). Near-identical pairs agree on the offset; as the distance
+grows, real biological differences make the log-ratios drift. τ is the first distance
+that gathers five pairs with a stable median; only the pairs up to τ (shaded) are used.</figcaption>
+</figure>
+
+<p>The bound is chosen separately for every pair of cohorts, so there is no global
+distance threshold to tune, and it works the same with cgMLST and wgMLST distances,
+which live on different scales.</p>
+
+<h3 id="edge"><span class="n">3.3</span>One number per cohort pair</h3>
+<p>The edge value is the median log-ratio of the pairs within the bound, a robust
+estimate of the offset difference:</p>
+$$ \Delta_{ab} = \operatorname{median}\{\, s : d \le \tau_{ab} \,\} \;\approx\; \delta_a - \delta_b . $$
+<p>Its standard error combines the measurement resolution of the two cohorts
+\(\sigma_a, \sigma_b\), a term for the biology that can still differ between isolates up to
+distance \(\tau\), and the number of pairs \(n_{ab}\):</p>
+$$ \mathrm{SE}_{ab} = \sqrt{\frac{\sigma_a^2 + \sigma_b^2 + \lambda\,\tau_{ab}}{n_{ab}}},
+\qquad w_{ab} = \frac{1}{\mathrm{SE}_{ab}^2}. $$
+<p>By default \(\sigma_c = \log_{10} 2 / \sqrt 2\), the resolution of a two-fold dilution
+series, and \(\lambda = (\log_{10} 2)^2\); <code>--sigma empirical</code> estimates each
+\(\sigma_c\) from the cohort's own measurement grid instead.</p>
+
+<h3 id="graph"><span class="n">3.4</span>Solving the graph</h3>
+<p>Cohorts are the nodes of a comparison graph and every pair of cohorts with
+supporting pairs is an edge. Each edge says how far apart its two cohorts are; the
+offsets are the node values that agree best with all edges at once, by weighted
+least squares:</p>
+$$ \hat\delta = \arg\min_{\delta}\; \sum_{(a,b)} w_{ab}\,\big(\delta_a - \delta_b - \Delta_{ab}\big)^2
+\quad \text{with } \delta_{\text{anchor}} = 0 . $$
+
+<figure>
+<div class="fig"><svg viewBox="0 0 720 250" role="img" aria-labelledby="f4t">
+<title id="f4t">Comparison graph of the toy example</title>
+<line class="edge" x1="120" y1="170" x2="600" y2="170"/><text class="note" x="360.0" y="194.0" text-anchor="middle">labB / labA = 2 · 3 pairs at d = 0</text>
+<line class="edge" x1="120" y1="170" x2="360" y2="40"/><text class="note" x="226.0" y="99.0" text-anchor="end">labC / labA = 5</text>
+<line class="edge" x1="600" y1="170" x2="360" y2="40"/><text class="note" x="494.0" y="99.0" text-anchor="start">labC / labB = 2.5</text>
+<circle class="node nA" cx="120" cy="170" r="30"/>
+<text class="nodet" x="120" y="175" text-anchor="middle">labA</text>
+<text class="tick" x="120" y="220" text-anchor="middle">δ = 0 (anchor)</text>
+<circle class="node nB" cx="600" cy="170" r="30"/>
+<text class="nodet" x="600" y="175" text-anchor="middle">labB</text>
+<text class="tick" x="600" y="220" text-anchor="middle">δ = log₁₀ 2 · 1.99× [1.05, 3.78]</text>
+<circle class="node nC" cx="360" cy="40" r="30"/>
+<text class="nodet" x="360" y="45" text-anchor="middle">labC</text>
+<text class="tick" x="400" y="45">δ = log₁₀ 5 · 5.01× [2.64, 9.26]</text>
+</svg></div>
+<figcaption><b>Figure 4.</b> The comparison graph of the toy example, with the edge
+ratios and the offsets phenocal estimates (median fold and 95% credible interval
+against the anchor labA).</figcaption>
+</figure>
+
+<p>Only differences of offsets are identified, so one cohort, the anchor, is fixed
+at 0 (<code>--anchor</code>, by default the largest cohort). The anchor is a choice of
+units, like choosing which laboratory's scale to report in: changing it shifts all
+harmonised values by the same factor and leaves every comparison between isolates
+unchanged. The graph must be connected: a cohort with no genetic link to the others
+cannot be calibrated, and phenocal says so. Cohorts linked only through other cohorts
+are fine: labC can be calibrated against labA through labB.</p>
+
+<h3 id="uncertainty"><span class="n">3.5</span>Uncertainty</h3>
+<p>Every edge is uncertain, so the offsets are too. phenocal draws each edge value from
+\(\mathcal N(\Delta_{ab}, \mathrm{SE}_{ab}^2)\), solves the graph again, and repeats this
+<code>--bootstrap</code> times (10,000 by default). The reported offset is the median of the
+draws and the 95% credible interval spans their 2.5th and 97.5th percentiles.
+<code>--robust</code> draws from a Student-t instead of a normal.</p>
+<div class="callout">Near-identical pairs are often nested in clonal clusters, and pairs from
+the same cluster are not independent. With <code>--clusters</code> (a table
+<code>sample → cluster</code>), phenocal also reports a cluster-weighted estimate and an
+interval that resamples whole clusters across the graph, the preferred summary when
+cluster ids are available.</div>
+
+<h3 id="labels"><span class="n">3.6</span>Harmonised values and probabilistic labels</h3>
+<p>The harmonised value of an isolate is its raw value brought to the anchor's scale,
+\(\text{value} / 10^{\hat\delta_c}\). Because \(\hat\delta_c\) is uncertain, so is the
+label of an isolate near a threshold. For each threshold \(c\) of <code>--thresholds</code>,
+phenocal reports the probability that the harmonised value is at least \(c\), over the
+uncertainty of the cohort offset:</p>
+$$ P_i(c) = \Pr\!\big( y_i - \delta_{c(i)} \ge \log_{10} c \big),
+\qquad \delta_{c(i)} \sim \mathcal N\big(\hat\delta_{c(i)},\, s_{c(i)}^2\big), $$
+<p>with \(s_c\) the half-width of the 95% interval divided by 1.96.</p>
+
+<figure>
+<div class="fig"><svg viewBox="0 0 720 250" role="img" aria-labelledby="f5t">
+<title id="f5t">Probability that one isolate is above a threshold</title>
+<path class="tail" d="M432.8,190 L434.8,71.3 L438.0,74.2 L441.1,77.3 L444.3,80.4 L447.5,83.5 L450.6,86.7 L453.8,90.0 L456.9,93.2 L460.1,96.5 L463.2,99.7 L466.4,103.0 L469.5,106.3 L472.6,109.5 L475.8,112.7 L478.9,115.9 L482.1,119.1 L485.2,122.2 L488.4,125.2 L491.5,128.2 L494.7,131.2 L497.8,134.0 L501.0,136.8 L504.2,139.5 L507.3,142.2 L510.4,144.7 L513.6,147.2 L516.8,149.6 L519.9,151.9 L523.1,154.2 L526.2,156.3 L529.4,158.3 L532.5,160.3 L535.6,162.2 L538.8,164.0 L542.0,165.7 L545.1,167.3 L548.2,168.9 L551.4,170.3 L554.5,171.7 L557.7,173.0 L560.8,174.3 L564.0,175.4 L567.1,176.5 L570.3,177.6 L573.5,178.5 L576.6,179.4 L579.8,180.3 L582.9,181.1 L586.1,181.8 L589.2,182.5 L592.4,183.1 L595.5,183.7 L598.6,184.3 L601.8,184.8 L605.0,185.3 L608.1,185.7 L611.2,186.1 L614.4,186.4 L617.5,186.8 L620.7,187.1 L623.9,187.4 L627.0,187.6 L630.1,187.9 L633.3,188.1 L636.5,188.3 L639.6,188.4 L642.8,188.6 L645.9,188.8 L649.0,188.9 L652.2,189.0 L655.4,189.1 L658.5,189.2 L661.7,189.3 L664.8,189.4 L667.9,189.4 L671.1,189.5 L674.2,189.6 L677.4,189.6 L680.5,189.7 L683.7,189.7 L686.8,189.7 L690.0,189.8 L690,190 Z"/>
+<polyline class="curve" points="60.0,189.8 63.1,189.7 66.3,189.7 69.4,189.7 72.6,189.6 75.8,189.6 78.9,189.5 82.0,189.4 85.2,189.4 88.4,189.3 91.5,189.2 94.7,189.1 97.8,189.0 101.0,188.9 104.1,188.8 107.2,188.6 110.4,188.4 113.6,188.3 116.7,188.1 119.8,187.9 123.0,187.6 126.2,187.4 129.3,187.1 132.4,186.8 135.6,186.4 138.8,186.1 141.9,185.7 145.1,185.3 148.2,184.8 151.4,184.3 154.5,183.7 157.7,183.1 160.8,182.5 163.9,181.8 167.1,181.1 170.2,180.3 173.4,179.4 176.5,178.5 179.7,177.6 182.9,176.5 186.0,175.4 189.2,174.3 192.3,173.0 195.4,171.7 198.6,170.3 201.8,168.9 204.9,167.3 208.0,165.7 211.2,164.0 214.3,162.2 217.5,160.3 220.7,158.3 223.8,156.3 227.0,154.2 230.1,151.9 233.2,149.6 236.4,147.2 239.5,144.7 242.7,142.2 245.9,139.5 249.0,136.8 252.2,134.0 255.3,131.2 258.4,128.2 261.6,125.2 264.8,122.2 267.9,119.1 271.1,115.9 274.2,112.7 277.4,109.5 280.5,106.3 283.6,103.0 286.8,99.7 289.9,96.5 293.1,93.2 296.2,90.0 299.4,86.7 302.6,83.5 305.7,80.4 308.9,77.3 312.0,74.2 315.1,71.3 318.3,68.4 321.4,65.6 324.6,62.9 327.7,60.4 330.9,57.9 334.1,55.6 337.2,53.4 340.4,51.3 343.5,49.4 346.6,47.7 349.8,46.1 352.9,44.7 356.1,43.5 359.2,42.4 362.4,41.5 365.6,40.9 368.7,40.4 371.8,40.1 375.0,40.0 378.2,40.1 381.3,40.4 384.4,40.9 387.6,41.5 390.8,42.4 393.9,43.5 397.1,44.7 400.2,46.1 403.3,47.7 406.5,49.4 409.6,51.3 412.8,53.4 416.0,55.6 419.1,57.9 422.3,60.4 425.4,62.9 428.5,65.6 431.7,68.4 434.8,71.3 438.0,74.2 441.1,77.3 444.3,80.4 447.5,83.5 450.6,86.7 453.8,90.0 456.9,93.2 460.1,96.5 463.2,99.7 466.4,103.0 469.5,106.3 472.6,109.5 475.8,112.7 478.9,115.9 482.1,119.1 485.2,122.2 488.4,125.2 491.5,128.2 494.7,131.2 497.8,134.0 501.0,136.8 504.2,139.5 507.3,142.2 510.4,144.7 513.6,147.2 516.8,149.6 519.9,151.9 523.1,154.2 526.2,156.3 529.4,158.3 532.5,160.3 535.6,162.2 538.8,164.0 542.0,165.7 545.1,167.3 548.2,168.9 551.4,170.3 554.5,171.7 557.7,173.0 560.8,174.3 564.0,175.4 567.1,176.5 570.3,177.6 573.5,178.5 576.6,179.4 579.8,180.3 582.9,181.1 586.1,181.8 589.2,182.5 592.4,183.1 595.5,183.7 598.6,184.3 601.8,184.8 605.0,185.3 608.1,185.7 611.2,186.1 614.4,186.4 617.5,186.8 620.7,187.1 623.9,187.4 627.0,187.6 630.1,187.9 633.3,188.1 636.5,188.3 639.6,188.4 642.8,188.6 645.9,188.8 649.0,188.9 652.2,189.0 655.4,189.1 658.5,189.2 661.7,189.3 664.8,189.4 667.9,189.4 671.1,189.5 674.2,189.6 677.4,189.6 680.5,189.7 683.7,189.7 686.8,189.7 690.0,189.8"/>
+<line class="axis" x1="60" x2="690" y1="190" y2="190"/>
+<line class="axis" x1="187.5" x2="187.5" y1="190" y2="195"/>
+<text class="tick" x="187.5" y="209" text-anchor="middle">0.5</text>
+<line class="axis" x1="296.0" x2="296.0" y1="190" y2="195"/>
+<text class="tick" x="296.0" y="209" text-anchor="middle">0.75</text>
+<line class="axis" x1="373.0" x2="373.0" y1="190" y2="195"/>
+<text class="tick" x="373.0" y="209" text-anchor="middle">1</text>
+<line class="axis" x1="432.8" x2="432.8" y1="190" y2="195"/>
+<text class="tick" x="432.8" y="209" text-anchor="middle">1.25</text>
+<line class="axis" x1="481.6" x2="481.6" y1="190" y2="195"/>
+<text class="tick" x="481.6" y="209" text-anchor="middle">1.5</text>
+<line class="axis" x1="558.6" x2="558.6" y1="190" y2="195"/>
+<text class="tick" x="558.6" y="209" text-anchor="middle">2</text>
+<line class="tau" x1="432.8" x2="432.8" y1="30" y2="190"/>
+<text class="note" x="438.8" y="44">threshold c = 1.25</text>
+<text class="big" x="544.9" y="95">P = 0.25</text>
+<text class="tick" x="345.0" y="48" text-anchor="end">s2_B harmonised: 1.007</text>
+<text class="tick" x="375.0" y="230" text-anchor="middle">harmonised value of s2_B over the uncertainty of the labB offset (log scale)</text>
+</svg></div>
+<figcaption><b>Figure 5.</b> Isolate s2_B of the toy example: its harmonised value is
+1.007, close to the threshold 1.25, and the labB offset is uncertain, so the
+probability of being at or above 1.25 is 0.25 (the Monte Carlo estimate in
+<code>labels.tsv</code> is 0.256). An isolate of the anchor cohort has no offset uncertainty and gets
+probability 0 or 1.</figcaption>
+</figure>
+
+<p>Instead of a hard label that may flip with a small change in the offset, a downstream
+model can use these probabilities, or drop the isolates whose label is uncertain.
+Finally, phenocal estimates a data-driven cutoff on the harmonised scale with two
+methods that bracket it: the antimode of a kernel density estimate and the crossover
+of a two-component Gaussian mixture, with a bootstrap interval.</p>
+
+<h2 id="example"><span class="n">4</span>Worked example</h2>
+<p>The toy example is in the repository and runs in a fraction of a second:</p>
+<pre><code>phenocal --phenotypes examples/toy_phenotypes.tsv \
+         --pairs examples/toy_distance_matrix.tsv \
+         --anchor labA --min-support 2 --out toy</code></pre>
+<p>Three strains (s1, s2, s3) are measured in three laboratories. Every strain is present
+in every laboratory, so every pair of cohorts has three pairs at distance 0.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>sample</th><th>cohort</th><th class="num">raw value</th><th class="num">harmonised</th></tr></thead>
+<tbody><tr><td>s1_A</td><td>labA</td><td class="num">0.5</td><td class="num">0.500</td></tr><tr><td>s1_B</td><td>labB</td><td class="num">1</td><td class="num">0.504</td></tr><tr><td>s1_C</td><td>labC</td><td class="num">2.5</td><td class="num">0.499</td></tr><tr><td>s2_A</td><td>labA</td><td class="num">1</td><td class="num">1.000</td></tr><tr><td>s2_B</td><td>labB</td><td class="num">2</td><td class="num">1.007</td></tr><tr><td>s2_C</td><td>labC</td><td class="num">5</td><td class="num">0.999</td></tr><tr><td>s3_A</td><td>labA</td><td class="num">2</td><td class="num">2.000</td></tr><tr><td>s3_B</td><td>labB</td><td class="num">4</td><td class="num">2.015</td></tr><tr><td>s3_C</td><td>labC</td><td class="num">10</td><td class="num">1.998</td></tr></tbody>
+</table></div>
+<p>For labA and labB the three log-ratios are all \(\log_{10}(0.5)\), so
+\(\Delta_{AB} = -0.301\), with
+\(\mathrm{SE} = \sqrt{(0.213^2 + 0.213^2 + 0)/3} = 0.174\). The three edges agree
+(\(2 \times 2.5 = 5\)), and the solution is \(\delta_B = \log_{10} 2\) and
+\(\delta_C = \log_{10} 5\). phenocal reports labB 1.99× [1.05, 3.78] and labC 5.01×
+[2.64, 9.26] against labA: centred on the true factors, and wide because each edge rests
+on three pairs only. After calibration each strain has the same value in every
+laboratory (0.50, 1.00, 2.00 within 1%).</p>
+<p>The same result comes from the pair table <code>examples/toy_pairs.tsv</code>;
+the repository tests check that the two inputs give identical outputs. Add
+<code>--dashboard toy.html</code> for an interactive report of the run, or
+<code>--trace toy.md</code> for the same calculations written out step by step with the
+actual numbers.</p>
+
+<h2 id="limits"><span class="n">5</span>Assumptions and limits</h2>
+<ul>
+<li><b>Identical genomes share their biology.</b> Isolates at small allelic distance are
+assumed to have the same true phenotype. The adaptive bound τ and the λ·τ term limit the
+effect of the biology that remains between near-identical isolates; pairs at distance 0
+are the cleanest evidence.</li>
+<li><b>The laboratory effect is a constant factor.</b> Each cohort scales all its values by
+one factor (a constant shift on the log scale). Effects that depend on the value itself
+are not modelled.</li>
+<li><b>The comparison graph must be connected</b> through genetically linked isolates.
+Cohorts that share no clone with any other cohort cannot be calibrated.</li>
+</ul>
+<div class="callout warn"><b>What cannot be told apart.</b> A biological difference that affects every isolate of one cohort in the
+same way, including its clones shared with other cohorts, looks exactly like a
+protocol offset and would be calibrated away. Biology specific to some strains does not
+have this problem: it makes the log-ratios grow with genomic distance, which is what the
+bound τ detects.</div>
+
+<h2 id="cite"><span class="n">6</span>Citation</h2>
+<p>de Ruvo A, Castelli P, Di Pasquale A, Radomski N. <i>PhenoCal: Natural-Control Label
+Calibration for Cross-Cohort Machine Learning.</i> 12th International Artificial
+Intelligence Symposium (AIS 2026), Springer Lecture Notes in Computer Science.
+The code as used in the paper is frozen at the
+<a href="https://github.com/genpat-it/phenocal/tree/ais2026"><code>ais2026</code></a> tag;
+the reproducibility archive is
+<a href="https://doi.org/10.5281/zenodo.21461769">doi:10.5281/zenodo.21461769</a>.</p>
+
+</main>
+<footer>
+phenocal is free software under the MIT licence, developed at the Istituto Zooprofilattico
+Sperimentale dell'Abruzzo e del Molise "G. Caporale" (IZSAM).
+<a href="https://github.com/genpat-it/phenocal">github.com/genpat-it/phenocal</a>
+</footer>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+  const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: true, theme: dark ? 'dark' : 'neutral' });
+</script>
+</body>
+</html>

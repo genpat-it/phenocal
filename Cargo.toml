@@ -10,7 +10,7 @@ homepage = "https://github.com/genpat-it/phenocal"
 readme = "README.md"
 keywords = ["bioinformatics", "calibration", "batch-effect", "phenotype", "genomics"]
 categories = ["science", "command-line-utilities"]
-exclude = ["/example", "/ais2026", "/.github"]
+exclude = ["/example", "/ais2026", "/.github", "/docs"]
 
 # Zero external dependencies: self-contained, builds offline.
 [dependencies]

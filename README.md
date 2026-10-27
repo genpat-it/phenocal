@@ -30,6 +30,21 @@ biological phenotype, so the difference in their measured values estimates the
 difference in cohort/protocol offset — the biology approximately cancels (exactly at zero genomic distance, approximately for near-clones). Offsets are fitted on a
 comparison graph by weighted least squares; one cohort is the anchor (δ=0).
 
+```mermaid
+flowchart LR
+    A(("labA<br/>anchor, δ = 0")) ---|"3 twin pairs at d = 0<br/>labB reads 2× labA"| B(("labB<br/>δ = log₁₀ 2"))
+    A ---|"3 twin pairs<br/>labC reads 5× labA"| C(("labC<br/>δ = log₁₀ 5"))
+    B ---|"3 twin pairs<br/>labC reads 2.5× labB"| C
+```
+
+*The toy example as a comparison graph: cohorts are nodes, each edge is the
+median ratio between genetically identical isolates measured in the two
+cohorts, and the offsets δ are the values on the nodes that best explain all
+edges at once.*
+
+**A step-by-step explanation of the method, with figures and the toy example
+worked through, is at <https://genpat-it.github.io/phenocal/>.**
+
 ## Installation
 
 **Prebuilt binary** (Linux x86_64/arm64, macOS Intel/Apple Silicon; static, no
@@ -228,9 +243,25 @@ compilation, no Docker, just open it.
 
 ## Algorithm (per cohort pair, per ruler)
 
+```mermaid
+flowchart TD
+    P[/"Phenotypes<br/>sample · value · cohort"/] --> X
+    D[/"Genomic distances<br/>pair table or distance matrix"/] --> X
+    X["1 · Cross-cohort pairs<br/>genomic distance d<br/>log-ratio s of the two values"] --> T
+    subgraph E["per cohort pair"]
+        T["2 · Adaptive bound τ<br/>smallest d with enough pairs<br/>and a stable median"] --> V
+        V["3 · Edge value Δ<br/>median of s over d ≤ τ<br/>weight 1 / SE²"]
+    end
+    V --> G["4 · Weighted least squares on the comparison graph<br/>cohort offsets δ, anchor δ = 0"]
+    G --> B["5 · Bootstrap the edges and refit<br/>95% credible intervals"]
+    B --> H["6 · Harmonised values<br/>value / 10^δ<br/>P(harmonised ≥ c) per threshold"]
+    H --> C["Cutoff on the harmonised scale<br/>KDE antimode · GMM crossover"]
+```
+
 1. Collect cross-cohort pairs with distance `d` and signed log-phenotype
-   difference `s = y_a − y_b` (oriented `a` over `b`); keep smallest-`d` instance
-   per isolate pair.
+   difference `s = y_a − y_b` (oriented `a` over `b`). Every pair given is used,
+   so each isolate pair should appear once: a distance matrix guarantees it,
+   a pair table should not repeat a pair.
 2. Adaptive `τ`: smallest distance bound with ≥ `min-support` pairs **and**
    median drift ≤ `max-drift · σ̄_ab` from the `d_min` value, where `σ̄_ab` is the
    edge resolution set by `--drift-scale` (`= log10(2)` for two-fold grids).
