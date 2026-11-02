@@ -91,7 +91,7 @@ act as controls, summarising them in an edge value with a standard error, solvin
 offsets on the graph of cohorts, and propagating the uncertainty to the labels.</p>
 
 <figure>
-<pre class="mermaid">@@FLOW@@</pre>
+<div class="fig">@@FLOW@@</div>
 <figcaption><b>Figure 3.</b> Overview of the algorithm. Steps 2 and 3 are carried out
 separately for every pair of cohorts that share near-identical isolates.</figcaption>
 </figure>
@@ -276,7 +276,7 @@ cohort labels and the genomes, never the features or the model, so it can preced
 classifier or regressor without leaking information from the evaluation (Figure 7).</p>
 
 <figure>
-<pre class="mermaid">@@MLFLOW@@</pre>
+<div class="fig">@@MLFLOW@@</div>
 <figcaption><b>Figure 7.</b> Position of phenocal in a learning pipeline. The calibration
 reads the genomes only to find natural controls; the features of the model are not
 involved.</figcaption>
@@ -413,11 +413,5 @@ releases add input formats and packaging and give identical results on the same 
 
 </main>
 @@FOOTER@@
-<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
-<script>
-  const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  mermaid.initialize({ startOnLoad: true, theme: dark ? 'dark' : 'neutral',
-    themeVariables: { fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif' } });
-</script>
 </body>
 </html>

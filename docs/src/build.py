@@ -228,29 +228,87 @@ def fig_ml():
     return "\n".join(o)
 
 
-MLFLOW = """flowchart LR
-    R[/"Raw phenotypes<br/>+ cohort labels"/] --> PC["phenocal"]
-    G[/"Allelic profiles<br/>or genomic distances"/] --> PC
-    PC --> L1["Calibrated labels<br/>hard or P(T)"]
-    PC --> L2["Harmonised<br/>log values"]
-    F[/"Model features<br/>genes, alleles, k-mers…"/] --> M1
-    F --> M2
-    L1 --> M1["Classifier"]
-    L2 --> M2["Regressor"]"""
+ARROW = ('<defs><marker id="{id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" '
+         'markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>'
+         '</marker></defs>')
 
 
-FLOW = """flowchart TD
-    P[/"Phenotypes<br/>sample · value · cohort"/] --> X
-    D[/"Genomes<br/>allelic profiles, distance matrix<br/>or pair table"/] --> X
-    X["1 · Cross-cohort pairs<br/>genomic distance d<br/>log-ratio s of the two values"] --> T
-    subgraph E["per cohort pair"]
-        T["2 · Adaptive bound τ<br/>smallest d with enough pairs<br/>and a stable median"] --> V
-        V["3 · Edge value Δ<br/>median of s over d ≤ τ<br/>weight 1 / SE²"]
-    end
-    V --> G["4 · Weighted least squares on the comparison graph<br/>cohort offsets δ, anchor δ = 0"]
-    G --> B["5 · Bootstrap the edges and refit<br/>95% credible intervals"]
-    B --> H["6 · Harmonised values<br/>value / 10^δ<br/>P(harmonised ≥ c) per threshold"]
-    H --> C["Cutoff on the harmonised scale<br/>KDE antimode · GMM crossover"]"""
+def box(x, y, w, h, lines, cls="box", sub=None, num=None):
+    """A rounded box with centred lines of text; `sub` is a muted last line."""
+    o = [f'<rect class="{cls}" x="{x}" y="{y}" width="{w}" height="{h}" rx="5"/>']
+    n = len(lines) + (1 if sub else 0)
+    y0 = y + h / 2 - (n - 1) * 8.5 + 4.5
+    for k, t in enumerate(lines):
+        o.append(f'<text class="bt" x="{x + w / 2}" y="{y0 + 17 * k:.1f}" text-anchor="middle">{t}</text>')
+    if sub:
+        o.append(f'<text class="bs" x="{x + w / 2}" y="{y0 + 17 * len(lines) + 2:.1f}" text-anchor="middle">{sub}</text>')
+    if num is not None:
+        o.append(f'<circle class="num" cx="{x + w / 2}" cy="{y}" r="11"/>'
+                 f'<text class="numt" x="{x + w / 2}" y="{y + 4.5}" text-anchor="middle">{num}</text>')
+    return "".join(o)
+
+
+def arrow(x1, y1, x2, y2, mid="ah"):
+    return f'<line class="flow" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" marker-end="url(#{mid})"/>'
+
+
+def fig_flow():
+    o = ['<svg viewBox="0 0 760 290" role="img" aria-labelledby="ffl"><title id="ffl">The five steps '
+         'of the algorithm, from the inputs to the outputs</title>', ARROW.format(id="ah")]
+    # inputs
+    o.append(box(8, 62, 128, 46, ["Phenotypes"], "inbox", "value · cohort"))
+    o.append(box(8, 122, 128, 46, ["Allelic profiles"], "inbox", "or distances"))
+    o.append(arrow(136, 85, 166, 104))
+    o.append(arrow(136, 145, 166, 126))
+    steps = [(["Cross-cohort", "pairs"], "d, s · Eq. 2–3"),
+             (["Adaptive", "bound τ"], "Eq. 4"),
+             (["Edge value", "and weight"], "Δ, w · Eq. 5–6"),
+             (["Least squares", "on the graph"], "δ · Eq. 7–8"),
+             (["Uncertainty", "and labels"], "P(t) · Eq. 9")]
+    W, G, X0, Y, H = 106, 12, 168, 66, 98
+    for k, (lines, sub) in enumerate(steps):
+        x = X0 + k * (W + G)
+        o.append(box(x, Y, W, H, lines, "box", sub, k + 1))
+        if k:
+            o.append(arrow(x - G, Y + H / 2, x - 1, Y + H / 2))
+    # bracket over steps 2-3
+    bx1, bx2 = X0 + (W + G), X0 + 2 * (W + G) + W
+    o.append(f'<path class="brk" d="M{bx1},44 v-8 H{bx2} v8"/>')
+    o.append(f'<text class="bs" x="{(bx1 + bx2) / 2}" y="26" text-anchor="middle">for each pair of cohorts</text>')
+    # outputs
+    x5 = X0 + 4 * (W + G) + W / 2
+    o.append(arrow(x5, Y + H, x5, 214))
+    o.append(box(X0, 216, 5 * W + 4 * G, 48,
+                 ["offsets δ with 95% intervals · harmonised values · probabilities P(t) · cutoff"],
+                 "inbox", "offsets.tsv · harmonised.tsv · labels.tsv · cutoff.tsv"))
+    o.append("</svg>")
+    return "".join(o)
+
+
+def fig_mlflow():
+    o = ['<svg viewBox="0 0 760 254" role="img" aria-labelledby="fml"><title id="fml">Position of '
+         'phenocal in a supervised-learning pipeline</title>', ARROW.format(id="am")]
+    o.append(box(8, 20, 150, 50, ["Raw phenotypes"], "inbox", "+ cohort labels"))
+    o.append(box(8, 90, 150, 50, ["Allelic profiles"], "inbox", "or distances"))
+    o.append(box(210, 46, 120, 68, ["phenocal"], "box"))
+    o.append(arrow(158, 45, 208, 70, "am"))
+    o.append(arrow(158, 115, 208, 92, "am"))
+    o.append(box(382, 14, 150, 50, ["Calibrated labels"], "box", "hard or P(t)"))
+    o.append(box(382, 96, 150, 50, ["Harmonised"], "box", "log values"))
+    o.append(arrow(330, 68, 380, 42, "am"))
+    o.append(arrow(330, 92, 380, 118, "am"))
+    o.append('<rect class="grp" x="584" y="4" width="170" height="168" rx="8"/>')
+    o.append('<text class="bs" x="669" y="166" text-anchor="middle">model</text>')
+    o.append(box(600, 14, 138, 50, ["Classifier"], "box"))
+    o.append(box(600, 96, 138, 50, ["Regressor"], "box"))
+    o.append(arrow(532, 39, 598, 39, "am"))
+    o.append(arrow(532, 121, 598, 121, "am"))
+    o.append(box(594, 196, 150, 50, ["Model features"], "inbox", "genes, alleles, k-mers"))
+    o.append(arrow(669, 196, 669, 174, "am"))
+    o.append('<text class="bs" x="580" y="225" text-anchor="end">not used by phenocal</text>')
+    o.append("</svg>")
+    return "".join(o)
+
 
 f5, p_s2b = fig_label()
 
@@ -269,8 +327,8 @@ body = (body.replace("@@FIG1@@", fig_problem())
             .replace("@@FIG4@@", fig_graph())
             .replace("@@FIG5@@", f5)
             .replace("@@FIG6@@", fig_ml())
-            .replace("@@MLFLOW@@", esc(MLFLOW))
-            .replace("@@FLOW@@", esc(FLOW))
+            .replace("@@MLFLOW@@", fig_mlflow())
+            .replace("@@FLOW@@", fig_flow())
             .replace("@@ROWS@@", rows_data)
             .replace("@@PS2B@@", f"{p_s2b:.2f}")
             .replace("@@AUTHORS@@", common.authors_html())
