@@ -3,26 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>phenocal — how the calibration works</title>
-<meta name="description" content="phenocal calibrates a phenotype measured by different laboratories, using genetically identical isolates as natural controls.">
+<title>Genome-anchored calibration of a phenotype measured across laboratories — phenocal</title>
+<meta name="description" content="phenocal calibrates a phenotype measured by different laboratories, using genetically identical isolates as natural controls: model, estimator, uncertainty and use in supervised learning.">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
   onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\(',right:'\\)',display:false}]})"></script>
 <style>
 :root {
-  --bg: #fbfaf7; --fg: #1d2129; --muted: #5d6573; --line: #d9dce2; --soft: #f0efe9;
-  --accent: #2458a6; --accent-soft: #e3ebf7; --warn: #b4530a;
+  --bg: #fdfcf9; --fg: #1b1d22; --muted: #5a606b; --line: #d6d8dd; --soft: #f2f1ec;
+  --accent: #1f4e96; --accent-soft: #e4ebf6; --warn: #b4530a;
   --s1: #2a7f62; --s2: #c46a1b; --s3: #6b4fa8;
   --a1: #9fb8d8; --a2: #e3c48f; --a3: #b9d3b0;
   --nA: #dfe9f6; --nB: #f6e7d6; --nC: #e9e2f4;
   --code: #f2f1ec;
+  --serif: "Charter", "Bitstream Charter", "Iowan Old Style", "Palatino Linotype", Palatino,
+           "Source Serif Pro", "Noto Serif", Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #15181d; --fg: #e6e8ec; --muted: #9aa3b2; --line: #343a45; --soft: #1d2128;
-    --accent: #7fa8e6; --accent-soft: #1f2b3d; --warn: #f0a35e;
+    --bg: #15181d; --fg: #e6e8ec; --muted: #9aa3b2; --line: #3a404b; --soft: #1d2128;
+    --accent: #8db1ea; --accent-soft: #1f2b3d; --warn: #f0a35e;
     --s1: #5cc29b; --s2: #ee9b52; --s3: #a993e0;
     --a1: #4f6f99; --a2: #9a7a45; --a3: #5d8452;
     --nA: #22314a; --nB: #3f2e1d; --nC: #33284a;
@@ -32,44 +35,110 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg);
-  font: 17px/1.62 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
-main { max-width: 780px; margin: 0 auto; padding: 0 20px 80px; }
-header { max-width: 780px; margin: 0 auto; padding: 56px 20px 8px; }
-h1 { font: 600 2.4rem/1.15 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0 0 .3em; letter-spacing: -.01em; }
-h1 code { font: inherit; background: none; padding: 0; }
-.lede { font-size: 1.2rem; color: var(--muted); margin: 0 0 1.2em; }
-h2 { font: 600 1.45rem/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 2.6em 0 .6em;
-  padding-top: .6em; border-top: 1px solid var(--line); }
-h3 { font: 600 1.1rem/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 2em 0 .4em; }
-h2 .n, h3 .n { color: var(--accent); margin-right: .35em; }
-a { color: var(--accent); }
+  font: 17.5px/1.6 var(--serif); font-kerning: normal;
+  font-variant-numeric: lining-nums proportional-nums; }
+main, header.paper, footer { max-width: 760px; margin: 0 auto; padding-left: 22px; padding-right: 22px; }
+main { padding-bottom: 80px; }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
 p, li { hyphens: auto; }
-.mermaid p, .mermaid span, .mermaid div { hyphens: manual; }
-nav.links { display: flex; flex-wrap: wrap; gap: 8px 18px; font: 500 .95rem system-ui, sans-serif; }
-nav.toc { font: .95rem/1.7 system-ui, sans-serif; background: var(--soft); border-radius: 10px; padding: 14px 20px; margin: 1.6em 0; }
-nav.toc ol { margin: 0; padding-left: 1.3em; columns: 2; column-gap: 32px; }
-@media (max-width: 560px) { nav.toc ol { columns: 1; } h1 { font-size: 2rem; } }
-code, pre { font: .88em/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-code { background: var(--code); padding: .08em .3em; border-radius: 4px; }
-pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+main > p, .env p, .abstract p, main li { text-align: justify; }
+
+/* title block */
+header.paper { padding-top: 64px; padding-bottom: 8px; text-align: center; }
+.kicker { font: 600 .78rem/1.4 var(--sans); letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 1.1em; }
+header.paper h1 { font: 600 2rem/1.2 var(--serif); margin: 0 0 .7em; letter-spacing: -.005em; }
+.authors { font-size: 1.05rem; margin: 0 0 .5em; }
+.au { white-space: nowrap; }
+.au sup { font-size: .68em; margin-left: 1px; }
+.orcid { margin-left: 3px; vertical-align: 1px; text-decoration: none; }
+ol.affil { list-style: none; padding: 0; margin: 0; font-size: .86rem; color: var(--muted); line-height: 1.45; }
+ol.affil sup { margin-right: 2px; }
+.affil-note { font-size: .82rem; color: var(--muted); margin: .4em 0 1.2em; }
+nav.links { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px;
+  font: 500 .9rem var(--sans); margin: 1em 0 0; }
+
+/* abstract */
+.abstract { max-width: 640px; margin: 2.2em auto 1.4em; font-size: .96rem; line-height: 1.55; }
+.abstract h2 { all: unset; display: block; text-align: center; font: 600 .82rem var(--sans);
+  letter-spacing: .14em; text-transform: uppercase; margin-bottom: .5em; }
+.keywords { font-size: .9rem; color: var(--muted); margin-top: .8em; }
+.keywords b { color: var(--fg); font-weight: 600; }
+
+/* headings */
+h2 { font: 600 1.32rem/1.3 var(--serif); margin: 2.4em 0 .7em; }
+h3 { font: 600 1.08rem/1.35 var(--serif); margin: 1.9em 0 .5em; }
+h2 .n, h3 .n { margin-right: .55em; font-variant-numeric: lining-nums; }
+h4 { font: italic 600 1rem var(--serif); margin: 1.4em 0 .3em; }
+
+/* contents */
+nav.toc { font: .92rem/1.65 var(--serif); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  padding: 12px 4px; margin: 1.8em 0 1em; }
+nav.toc .h { font: 600 .78rem var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+nav.toc ol { margin: .4em 0 0; padding-left: 1.5em; columns: 2; column-gap: 36px; }
+nav.toc a { text-decoration: none; }
+@media (max-width: 600px) { nav.toc ol { columns: 1; } header.paper h1 { font-size: 1.6rem; } }
+
+/* definitions, propositions, proofs */
+.env { margin: 1.4em 0; padding: .2em 0 .2em 1em; border-left: 2px solid var(--accent); }
+.env .env-h { font-weight: 700; }
+.env .env-h .name { font-weight: 400; }
+.env.prop > p { font-style: italic; }
+.env.prop > p .katex { font-style: normal; }
+.proof { margin: -.6em 0 1.4em 1em; padding-left: 1em; }
+.proof > p:first-child::before { content: "Proof. "; font-style: italic; }
+.proof > p:last-child::after { content: " ∎"; }
+.remark { margin: 1.4em 0; padding: .2em 0 .2em 1em; border-left: 2px solid var(--line); }
+.remark .env-h { font-style: italic; }
+.remark.warn { border-left-color: var(--warn); }
+
+/* side notes: in the margin on wide screens, inline below */
+.sn { display: block; font: .84rem/1.45 var(--serif); color: var(--muted); margin: .4em 0 .8em;
+  padding-left: 1em; border-left: 1px solid var(--line); text-align: left; }
+@media (min-width: 1260px) {
+  .sn { float: right; clear: right; width: 220px; margin: .2em -262px 1em 0; padding-left: 0; border: 0; }
+}
+
+/* equations, code */
+.katex { font-size: 1.04em; }
+.katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; margin: 1em 0; }
+code, pre { font: .86em/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: normal; }
+code { background: var(--code); padding: .06em .3em; border-radius: 3px; hyphens: none; white-space: nowrap; }
+pre code { white-space: pre; }
+pre { background: var(--code); padding: 14px 16px; border-radius: 4px; overflow-x: auto; }
 pre code { background: none; padding: 0; }
-figure { margin: 1.6em 0; }
+
+/* figures */
+figure { margin: 2em 0; }
 figure .fig { overflow-x: auto; }
 figure svg { width: 100%; min-width: 560px; height: auto; display: block; }
-figcaption { font: .9rem/1.5 system-ui, sans-serif; color: var(--muted); margin-top: .5em; }
-.callout { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 12px 18px; border-radius: 0 8px 8px 0; margin: 1.4em 0; }
-.callout.warn { border-color: var(--warn); background: var(--soft); }
-.katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
-.tablewrap { overflow-x: auto; }
-table { border-collapse: collapse; font: .92rem/1.45 system-ui, sans-serif; margin: 1em 0; width: 100%; }
-th, td { border-bottom: 1px solid var(--line); padding: 6px 10px; text-align: left; }
-th { color: var(--muted); font-weight: 600; }
-td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-.mermaid { background: var(--soft); border-radius: 10px; padding: 14px; text-align: center; overflow-x: auto; }
-footer { max-width: 780px; margin: 0 auto; padding: 24px 20px 60px; color: var(--muted); font: .9rem system-ui, sans-serif; border-top: 1px solid var(--line); }
+figcaption { font: .9rem/1.5 var(--serif); color: var(--fg); margin-top: .7em; text-align: justify; hyphens: auto; }
+figcaption b:first-child, .tcap b:first-child { font-weight: 700; }
+.mermaid { text-align: center; overflow-x: auto; padding: 8px 0; }
+.mermaid p, .mermaid span, .mermaid div { hyphens: manual; }
+
+/* tables: booktabs */
+.tablewrap { overflow-x: auto; margin: 1.6em 0; }
+.tcap { font: .9rem/1.5 var(--serif); margin: 0 0 .5em; text-align: justify; }
+table { border-collapse: collapse; font: .9rem/1.45 var(--serif); width: 100%;
+  font-variant-numeric: lining-nums tabular-nums; border-top: 1.5px solid var(--fg); border-bottom: 1.5px solid var(--fg); }
+thead th { border-bottom: 1px solid var(--fg); font-weight: 600; }
+th, td { padding: 5px 10px; text-align: left; }
+td.num, th.num { text-align: right; }
+table.narrow { width: auto; }
+
+/* references */
+ol.refs { font-size: .9rem; line-height: 1.5; padding-left: 2.2em; }
+ol.refs li { margin: .35em 0; text-align: left; hyphens: manual; }
+ol.refs li::marker { content: "[" counter(list-item) "]  "; }
+.cite a { text-decoration: none; }
+pre.bib { font-size: .8rem; }
+
+footer { padding-top: 22px; padding-bottom: 60px; color: var(--muted); font: .85rem var(--serif);
+  border-top: 1px solid var(--line); }
 
 /* figure styling */
-svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--fg); }
+svg text { font-family: var(--sans); fill: var(--fg); }
 svg .panel { font-size: 15px; font-weight: 600; }
 svg .lab, svg .nodet { font-size: 14px; font-weight: 600; }
 svg .tick { font-size: 12.5px; fill: var(--muted); }
@@ -94,50 +163,74 @@ svg .curve { fill: none; stroke: var(--accent); stroke-width: 2.5; }
 svg .tail { fill: var(--accent-soft); stroke: none; }
 svg .sens { fill: var(--s1); } svg .tol { fill: var(--s2); }
 svg .barl { font-size: 13px; font-weight: 600; fill: #fff; }
+nav.toc li { text-align: left; }
+nav.toc.supp li::marker { content: "S" counter(list-item) "  "; }
+@media (max-width: 600px) {
+  main > p, .env p, .abstract p, main li, figcaption, .tcap { text-align: left; }
+  body { font-size: 16.5px; }
+}
 </style>
 </head>
 <body>
-<header>
-  <h1><code>phenocal</code></h1>
-  <p class="lede">How to compare a phenotype measured by different laboratories, using
-  genetically identical isolates as built-in reference samples.</p>
+<header class="paper">
+  <p class="kicker">Method note · reference implementation</p>
+  <h1>Genome-anchored calibration of a phenotype measured across laboratories</h1>
+  <p class="authors"><span class="au">Andrea de Ruvo<sup>1,3*</sup><a class="orcid" href="https://orcid.org/0000-0001-6836-3455" title="ORCID 0000-0001-6836-3455" aria-label="ORCID 0000-0001-6836-3455"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="8" fill="#a6ce39"/><text x="8" y="11.6" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="system-ui,sans-serif">iD</text></svg></a></span>, <span class="au">Pierluigi Castelli<sup>2,3*</sup><a class="orcid" href="https://orcid.org/0000-0001-6518-1752" title="ORCID 0000-0001-6518-1752" aria-label="ORCID 0000-0001-6518-1752"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="8" fill="#a6ce39"/><text x="8" y="11.6" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="system-ui,sans-serif">iD</text></svg></a></span>, <span class="au">Adriano Di Pasquale<sup>3</sup><a class="orcid" href="https://orcid.org/0000-0002-9328-3972" title="ORCID 0000-0002-9328-3972" aria-label="ORCID 0000-0002-9328-3972"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="8" fill="#a6ce39"/><text x="8" y="11.6" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="system-ui,sans-serif">iD</text></svg></a></span>, <span class="au">Nicolas Radomski<sup>3</sup><a class="orcid" href="https://orcid.org/0000-0002-7480-4197" title="ORCID 0000-0002-7480-4197" aria-label="ORCID 0000-0002-7480-4197"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="8" fill="#a6ce39"/><text x="8" y="11.6" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="system-ui,sans-serif">iD</text></svg></a></span></p><ol class="affil"><li><sup>1</sup>Gran Sasso Science Institute (GSSI), L'Aquila, Italy</li><li><sup>2</sup>Università degli Studi di Teramo (UNITE), Teramo, Italy</li><li><sup>3</sup>Istituto Zooprofilattico Sperimentale dell'Abruzzo e del Molise “G. Caporale” (IZSAM), Teramo, Italy</li></ol><p class="affil-note"><sup>*</sup>These authors contributed equally.</p>
   <nav class="links">
-    <a href="https://github.com/genpat-it/phenocal">Source on GitHub</a>
-    <a href="https://github.com/genpat-it/phenocal#installation">Install</a>
+    <a href="https://github.com/genpat-it/phenocal">Code</a>
+    <a href="https://github.com/genpat-it/phenocal#installation">Installation</a>
     <a href="https://github.com/genpat-it/phenocal/releases/latest">Latest release</a>
-    <a href="worked.html">Worked example, step by step</a>
-    <a href="https://doi.org/10.5281/zenodo.21461769">Reproducibility archive (Zenodo)</a>
+    <a href="worked.html">Supplementary: worked example</a>
+    <a href="https://doi.org/10.5281/zenodo.21461769">Zenodo archive</a>
     <a href="#cite">Cite</a>
   </nav>
 </header>
 <main>
 
+<section class="abstract">
+<h2>Abstract</h2>
+<p>Phenotypes such as minimum inhibitory concentrations are routinely pooled from studies
+that measured them with different protocols, and a protocol that shifts the whole
+measurement scale confounds the phenotype with its source before any analysis begins.
+phenocal estimates these shifts without shared reference strains. It treats pairs of
+genetically identical or near-identical isolates measured in different laboratories as
+natural controls, in which the biology cancels and only the difference between the two
+laboratory offsets remains. For every pair of laboratories an adaptive bound on the
+allelic distance selects the closest pairs whose median log-ratio is stable, the
+resulting edge values are combined by weighted least squares on the graph of
+laboratories, and the uncertainty of the offsets is propagated to harmonised values and
+to isolate-level probabilities of exceeding each threshold. The estimator uses only the
+phenotypes, the cohort labels and the allelic profiles, never the features of a
+downstream model, and is described in the AIS 2026 paper <span class="cite">[<a href="#ref-1">1</a>]</span>; this page
+gives the method in full and the
+<a href="worked.html">supplementary material</a> works every calculation by hand.</p>
+<p class="keywords"><b>Keywords:</b> label calibration · batch effect · natural controls ·
+cgMLST · wgMLST · weighted least squares · probabilistic labels</p>
+</section>
+
 <nav class="toc" aria-label="Contents">
+  <span class="h">Contents</span>
   <ol>
-    <li><a href="#problem">The problem</a></li>
-    <li><a href="#idea">The idea: natural controls</a></li>
-    <li><a href="#glance">The algorithm at a glance</a></li>
-    <li><a href="#pairs">Cross-cohort pairs</a></li>
-    <li><a href="#tau">Which pairs count: τ</a></li>
-    <li><a href="#edge">One number per cohort pair</a></li>
-    <li><a href="#graph">Solving the graph</a></li>
-    <li><a href="#uncertainty">Uncertainty</a></li>
-    <li><a href="#labels">Harmonised values and labels</a></li>
-    <li><a href="#ml">Why it matters for machine learning</a></li>
-    <li><a href="#example">Worked example</a></li>
-    <li><a href="#limits">Assumptions and limits</a></li>
-    <li><a href="#cite">Citation</a></li>
+    <li><a href="#intro">Introduction</a></li>
+    <li><a href="#method">Model and estimator</a></li>
+    <li><a href="#ml">Calibration before supervised learning</a></li>
+    <li><a href="#example">Illustrative example</a></li>
+    <li><a href="#limits">Assumptions and limitations</a></li>
+    <li><a href="#software">Software availability</a></li>
+    <li><a href="#cite">How to cite</a></li>
+    <li><a href="#refs">References</a></li>
   </ol>
 </nav>
 
-<h2 id="problem"><span class="n">1</span>The problem</h2>
-<p>A phenotype such as a minimum inhibitory concentration (MIC) is often collected
-from several studies or laboratories, each with its own protocol. Protocols differ
-in medium, inoculum or reading, and these differences shift the whole scale: one
-laboratory may read every strain two dilutions higher than another. Pooling the raw
-values then mixes biology with protocol. A classifier trained on the pooled data
-learns which laboratory produced a value, and a threshold such as
-"tolerant if MIC ≥ 1.25 mg/L" means something different in each cohort.</p>
+<h2 id="intro"><span class="n">1</span>Introduction</h2>
+<p>A phenotype such as a minimum inhibitory concentration (MIC) is often assembled from
+several studies or laboratories, each with its own protocol. Differences in medium,
+inoculum or reading do not add noise so much as move the whole scale, so that one
+laboratory may read every strain two dilutions higher than another. When the raw values
+are pooled, biology and protocol become inseparable: a classifier trained on the pooled
+data can learn which laboratory produced a value rather than the trait itself, and a
+threshold such as “tolerant if MIC ≥ 1.25 mg/L” takes a different meaning in each
+cohort (Figure 1).</p>
 
 <figure>
 <div class="fig"><svg viewBox="0 0 720 405" role="img" aria-labelledby="f1t">
@@ -212,25 +305,21 @@ learns which laboratory produced a value, and a threshold such as
 <circle class="st3" cx="626" cy="15" r="6"/>
 <text class="tick" x="636" y="19">strain 3</text>
 </svg></div>
-<figcaption><b>Figure 1.</b> The toy example shipped with phenocal: three strains (colours)
-measured by three laboratories. labB reads every strain 2× higher than labA, labC
-5× higher. After calibration the same strain gets the same value whatever the
-laboratory. Values are those of <code>examples/toy_phenotypes.tsv</code> and of the
+<figcaption><b>Figure 1.</b> The toy example distributed with phenocal: three strains
+(colours) measured by three laboratories. labB reads every strain twice as high as labA,
+and labC five times as high. After calibration each strain has the same value whatever
+the laboratory. Values are those of <code>examples/toy_phenotypes.tsv</code> and of the
 phenocal output.</figcaption>
 </figure>
 
-<p>The usual way to fix the scale is a shared reference: the same control strains
-measured by every laboratory. When the data come from published studies, such
-controls rarely exist. phenocal finds them in the data.</p>
-
-<h2 id="idea"><span class="n">2</span>The idea: natural controls</h2>
-<p>On the logarithmic scale, the measured value of isolate \(i\) in cohort \(c\) is
-modelled as its biology plus a cohort offset plus noise:</p>
-$$ y_{i} = \log_{10}(\text{value}_i) = \mu_i + \delta_{c(i)} + \varepsilon_i . $$
-<p>The offset \(\delta_c\) is multiplicative on the raw scale (a factor \(10^{\delta_c}\)),
-which is how protocol differences such as a dilution shift behave. If two isolates
-measured in different cohorts have the same genome, they have the same biology,
-\(\mu_i = \mu_j\), and the biology cancels in their difference.</p>
+<p>The scale is normally fixed with shared reference material, the same control strains
+measured by every laboratory. Data collected from published studies rarely include such
+controls, but they often contain something equivalent. Surveillance collections sample
+the same clones repeatedly, so the same genome is frequently measured by more than one
+laboratory, and such a pair behaves as a control whose true phenotype is unknown but
+identical on both sides (Figure 2). phenocal reads these natural controls from the
+genomes, through cgMLST or wgMLST allelic distances, and estimates one offset per
+laboratory together with its uncertainty.</p>
 
 <figure>
 <div class="fig"><svg viewBox="0 0 720 230" role="img" aria-labelledby="f2t">
@@ -270,16 +359,17 @@ measured in different cohorts have the same genome, they have the same biology,
 <defs><marker id="arr" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M0 0 L10 5 L0 10 z"/></marker></defs>
 </svg></div>
 <figcaption><b>Figure 2.</b> A pair of genetically identical isolates measured in two
-laboratories is a natural control: the difference of their log values estimates
-the difference of the two cohort offsets.</figcaption>
+laboratories is a natural control: the difference of their log values estimates the
+difference of the two cohort offsets.</figcaption>
 </figure>
 
-<p>Large surveillance collections contain many such pairs, because the same clones
-circulate widely and are sampled again and again. Each pair gives a noisy estimate
-of \(\delta_B - \delta_A\); many pairs give a precise one. The genome, read through
-cgMLST or wgMLST allelic distances, plays the role of the reference sample.</p>
+<h2 id="method"><span class="n">2</span>Model and estimator</h2>
+<p>The procedure has five steps, summarised in Figure 3: collecting the cross-cohort pairs
+with their allelic distance, choosing for each pair of cohorts the pairs close enough to
+act as controls, summarising them in an edge value with a standard error, solving for the
+offsets on the graph of cohorts, and propagating the uncertainty to the labels.</p>
 
-<h2 id="glance"><span class="n">3</span>The algorithm at a glance</h2>
+<figure>
 <pre class="mermaid">flowchart TD
     P[/"Phenotypes&lt;br/>sample · value · cohort"/] --> X
     D[/"Genomes&lt;br/>allelic profiles, distance matrix&lt;br/>or pair table"/] --> X
@@ -292,36 +382,67 @@ cgMLST or wgMLST allelic distances, plays the role of the reference sample.</p>
     G --> B["5 · Bootstrap the edges and refit&lt;br/>95% credible intervals"]
     B --> H["6 · Harmonised values&lt;br/>value / 10^δ&lt;br/>P(harmonised ≥ c) per threshold"]
     H --> C["Cutoff on the harmonised scale&lt;br/>KDE antimode · GMM crossover"]</pre>
+<figcaption><b>Figure 3.</b> Overview of the algorithm. Steps 2 and 3 are carried out
+separately for every pair of cohorts that share near-identical isolates.</figcaption>
+</figure>
 
-<h3 id="pairs"><span class="n">3.1</span>Cross-cohort pairs</h3>
-<p>The inputs are two TSV files: the phenotypes (<code>sample</code>, <code>value</code>,
-<code>cohort</code>) and the genomes. The genomes are normally given as cgMLST or wgMLST
-allelic profiles (<code>--profiles</code>), the allele-call table that chewBBACA writes as
-<code>results_alleles.tsv</code>, one row per sample and one column per locus; nothing has
-to be computed beforehand. phenocal computes the allelic distance between two samples as
-the number of loci called in both whose alleles differ, the same distance as chewBBACA,
-cgmlst-dists and ReporTree, so missing calls (<code>LNF</code>, <code>ASM</code>,
-<code>0</code>, …) never count as differences.</p>
-<p>Distances computed elsewhere can be given instead (<code>--pairs</code>): a distance
-matrix as written by chewBBACA <code>DistanceMatrix</code>, ReporTree, cgmlst-dists or
-cgDist, or a pair table (<code>sample_i</code>, <code>sample_j</code>,
-<code>distance</code>) for any other ruler, such as SNP distances. Either way, phenocal
-keeps the pairs whose two isolates belong to different cohorts. For each, it records the
-genomic distance \(d\) and the log-ratio</p>
-$$ s = y_i - y_j \qquad (i \text{ in cohort } a,\; j \text{ in cohort } b). $$
-<p>Pairs within one cohort carry no information on the offsets and are ignored.</p>
+<h3 id="model"><span class="n">2.1</span>Measurement model</h3>
+<p>Let \(y_i = \log_{10} m_i\) be the logarithm of the value \(m_i\) measured on isolate
+\(i\), and \(c(i)\) the cohort that measured it. We assume</p>
+$$ y_i = \mu_i + \delta_{c(i)} + \varepsilon_i, \tag{1} $$
+<p>where \(\mu_i\) is the unknown biological value of the isolate, \(\delta_c\) the offset of
+cohort \(c\), and \(\varepsilon_i\) measurement noise with median zero. An offset on the
+logarithmic scale is a constant factor \(10^{\delta_c}\) on the original scale, which is
+how a shift of the dilution series or of the reading behaves.</p>
 
-<h3 id="tau"><span class="n">3.2</span>Which pairs count: the adaptive bound τ</h3>
-<p>Isolates at distance 0 are the cleanest controls, but there may be too few of them.
-Isolates a few alleles apart are almost as good, while distant isolates differ in
-biology and would bias the estimate. For every pair of cohorts, phenocal sorts the
-pairs by distance and picks the bound \(\tau\) automatically: the smallest distance at
-which there are at least <code>--min-support</code> pairs with \(d \le \tau\) and the median
-of their log-ratios has not drifted from the median at the smallest distance by more
-than <code>--max-drift</code> units of measurement resolution. Taking the smallest such
-bound keeps the evidence as close to identical genomes as the data allow. If no bound
-satisfies both conditions, all pairs of that cohort pair are used, and the large τ and
-small number of pairs give the edge a low weight.</p>
+<div class="env def"><p><span class="env-h">Definition 1 <span class="name">(log-ratio)</span>.</span>
+For isolates \(i\) in cohort \(a\) and \(j\) in cohort \(b \neq a\), the log-ratio is
+$$ s_{ij} = y_i - y_j = (\delta_a - \delta_b) + (\mu_i - \mu_j) + (\varepsilon_i - \varepsilon_j). \tag{2} $$</p></div>
+
+<p>If the two isolates have the same genome, \(\mu_i = \mu_j\) and the log-ratio measures
+the contrast \(\delta_a - \delta_b\) up to noise. Pairs within one cohort carry no
+information on the offsets and are not used.</p>
+
+<h3 id="distance"><span class="n">2.2</span>Genomic distance</h3>
+<p>Relatedness is measured on cgMLST or wgMLST allelic profiles, which phenocal reads as
+written by chewBBACA <span class="cite">[<a href="#ref-2">2</a>]</span> (<code>--profiles</code>).</p>
+<div class="env def"><p><span class="env-h">Definition 2 <span class="name">(allelic distance)</span>.</span>
+Let \(a_{il}\) be the allele of isolate \(i\) at locus \(l\), or \(\varnothing\) if the call is
+missing. The distance between isolates \(i\) and \(j\) is the number of loci called in both
+whose alleles differ,
+$$ d_{ij} = \sum_{l} \mathbf 1\big[a_{il} \neq \varnothing,\; a_{jl} \neq \varnothing,\; a_{il} \neq a_{jl}\big]. \tag{3} $$</p></div>
+<p>This is the distance computed by chewBBACA, cgmlst-dists <span class="cite">[<a href="#ref-3">3</a>]</span> and
+ReporTree <span class="cite">[<a href="#ref-4">4</a>]</span>, so a missing call never counts as a difference. The chewBBACA
+prefix <code>INF-</code> marks a newly inferred allele and is removed; the chewBBACA
+classes <code>LNF</code>, <code>ASM</code>, <code>ALM</code>, <code>NIPH</code>,
+<code>PLOT3</code>, … and the value 0 are missing calls; integer alleles are compared by
+value, so that 32-bit CRC hashes are handled at any size, and any other text is compared
+as text. Distances computed elsewhere, a distance matrix or a table of pairs on any other
+ruler such as SNP distances, can be supplied instead (<code>--pairs</code>).</p>
+
+<h3 id="tau"><span class="n">2.3</span>Adaptive relatedness bound</h3>
+<p>Pairs at distance zero are the cleanest controls, but there may be too few of them,
+while pairs a few alleles apart are almost as informative and distant pairs differ in
+their biology. The bound is therefore chosen from the data, separately for every pair of
+cohorts.</p>
+<div class="env def"><p><span class="env-h">Definition 3 <span class="name">(adaptive bound)</span>.</span>
+Let \(P_{ab}\) be the cross-cohort pairs of cohorts \(a\) and \(b\), \(d_{\min}\) their smallest
+distance, \(m_0\) the median log-ratio of the pairs at \(d_{\min}\), and
+\(\bar\sigma_{ab} = \sqrt{(\sigma_a^2 + \sigma_b^2)/2}\) the resolution of the two cohorts. The
+bound \(\tau_{ab}\) is the smallest distance \(\tau\) observed in \(P_{ab}\) such that
+$$ n(\tau) = \#\{(i,j) \in P_{ab} : d_{ij} \le \tau\} \ge n_{\min}
+\quad\text{and}\quad
+\big|\operatorname{median}\{s_{ij} : d_{ij} \le \tau\} - m_0\big| \le \kappa\,\bar\sigma_{ab}. \tag{4} $$
+If no distance satisfies both conditions, all pairs of \(P_{ab}\) are used.</p></div>
+<p>The first condition requires enough pairs (<code>--min-support</code>, \(n_{\min}=5\)
+by default); the second stops the bound as soon as more distant pairs move the median by
+more than \(\kappa\) units of measurement resolution (<code>--max-drift</code>,
+\(\kappa = 1\)), the signature of biology rather than protocol (Figure 4). Taking the
+smallest admissible bound keeps the evidence as close to identical genomes as the data
+allow, and because the bound is chosen per edge there is no global distance threshold to
+tune, which matters since cgMLST and wgMLST distances live on different scales. When no
+bound is admissible, the large \(\tau\) and small \(n\) give the edge a low weight through
+Eq. (6).</p>
 
 <figure>
 <div class="fig"><svg viewBox="0 0 720 280" role="img" aria-labelledby="f3t">
@@ -372,36 +493,43 @@ small number of pairs give the edge a low weight.</p>
 <text class="note" x="161.6" y="207.8">Δ = median of the 5 shaded pairs = 0.31</text>
 <text class="tick" x="428.9" y="38.9" text-anchor="middle">farther pairs: biology drifts in, not used</text>
 </svg></div>
-<figcaption><b>Figure 3.</b> Choice of τ for one pair of cohorts (illustrative data,
-<code>--min-support 5</code>). Near-identical pairs agree on the offset; as the distance
-grows, real biological differences make the log-ratios drift. τ is the first distance
-that gathers five pairs with a stable median; only the pairs up to τ (shaded) are used.</figcaption>
+<figcaption><b>Figure 4.</b> Choice of \(\tau\) for one pair of cohorts (illustrative data,
+\(n_{\min} = 5\)). Near-identical pairs agree on the offset; as the distance grows, genuine
+biological differences make the log-ratios drift. \(\tau\) is the first distance that
+gathers five pairs with a stable median, and only the pairs up to \(\tau\) (shaded) are
+used. A case worked by hand, with a rejected bound, is in Section 4 of the
+<a href="worked.html#edge-AC">supplementary material</a>.</figcaption>
 </figure>
 
-<p>The bound is chosen separately for every pair of cohorts, so there is no global
-distance threshold to tune, and it works the same with cgMLST and wgMLST distances,
-which live on different scales.</p>
-
-<h3 id="edge"><span class="n">3.3</span>One number per cohort pair</h3>
-<p>The edge value is the median log-ratio of the pairs within the bound, a robust
-estimate of the offset difference:</p>
-$$ \Delta_{ab} = \operatorname{median}\{\, s : d \le \tau_{ab} \,\} \;\approx\; \delta_a - \delta_b . $$
-<p>Its standard error combines the measurement resolution of the two cohorts
-\(\sigma_a, \sigma_b\), a term for the biology that can still differ between isolates up to
-distance \(\tau\), and the number of pairs \(n_{ab}\):</p>
+<h3 id="edge"><span class="n">2.4</span>Edge estimates</h3>
+<p>Each pair of cohorts with supporting pairs becomes an edge of the comparison graph,
+with value</p>
+$$ \Delta_{ab} = \operatorname{median}\{\, s_{ij} : (i,j) \in P_{ab},\ d_{ij} \le \tau_{ab} \,\}
+\;\approx\; \delta_a - \delta_b, \tag{5} $$
+<p>a median rather than a mean, so that a few discordant pairs do not move it and only
+the symmetry of the residuals is required, not a parametric error law. Its standard error
+combines the resolution of the two cohorts, a term for the biology that may still differ
+between isolates up to distance \(\tau\), and the number of pairs \(n_{ab} = n(\tau_{ab})\):</p>
 $$ \mathrm{SE}_{ab} = \sqrt{\frac{\sigma_a^2 + \sigma_b^2 + \lambda\,\tau_{ab}}{n_{ab}}},
-\qquad w_{ab} = \frac{1}{\mathrm{SE}_{ab}^2}. $$
+\qquad w_{ab} = \frac{1}{\mathrm{SE}_{ab}^2}. \tag{6} $$
 <p>By default \(\sigma_c = \log_{10} 2 / \sqrt 2\), the resolution of a two-fold dilution
-series, and \(\lambda = (\log_{10} 2)^2\); <code>--sigma empirical</code> estimates each
-\(\sigma_c\) from the cohort's own measurement grid instead.</p>
+series, and \(\lambda = (\log_{10} 2)^2\) per allele; <code>--sigma empirical</code> estimates
+each \(\sigma_c\) from the spacing of the cohort's own measurement grid. With the defaults
+Eq. (6) reduces to \(\log_{10} 2 \cdot \sqrt{(1 + \tau)/n}\).</p>
 
-<h3 id="graph"><span class="n">3.4</span>Solving the graph</h3>
-<p>Cohorts are the nodes of a comparison graph and every pair of cohorts with
-supporting pairs is an edge. Each edge says how far apart its two cohorts are; the
-offsets are the node values that agree best with all edges at once, by weighted
-least squares:</p>
-$$ \hat\delta = \arg\min_{\delta}\; \sum_{(a,b)} w_{ab}\,\big(\delta_a - \delta_b - \Delta_{ab}\big)^2
-\quad \text{with } \delta_{\text{anchor}} = 0 . $$
+<h3 id="graph"><span class="n">2.5</span>Calibration on the comparison graph</h3>
+<p>The cohorts are the nodes of a graph whose edges carry the values \(\Delta_{ab}\) and
+weights \(w_{ab}\) (Figure 5). Since only contrasts are identified, one cohort, the anchor,
+is fixed at zero (<code>--anchor</code>, the largest cohort by default), and the offsets
+solve the weighted least-squares problem</p>
+$$ \hat\delta = \arg\min_{\delta:\ \delta_{\mathrm{anc}} = 0}\; \sum_{(a,b)} w_{ab}\,\big(\Delta_{ab} - (\delta_a - \delta_b)\big)^2, \tag{7} $$
+<p>whose normal equations</p>
+$$ A^{\top} W A\, \hat\delta = A^{\top} W \Delta \tag{8} $$
+<p>involve the signed edge–node incidence matrix \(A\) without the anchor column and
+\(W = \operatorname{diag}(w_{ab})\); \(A^{\top} W A\) is the weighted graph Laplacian with the
+anchor row and column removed. The system has a unique solution if and only if every
+cohort is connected to the anchor through the graph, possibly through other cohorts;
+phenocal stops with an error otherwise.</p>
 
 <figure>
 <div class="fig"><svg viewBox="0 0 720 250" role="img" aria-labelledby="f4t">
@@ -419,40 +547,64 @@ $$ \hat\delta = \arg\min_{\delta}\; \sum_{(a,b)} w_{ab}\,\big(\delta_a - \delta_
 <text class="nodet" x="360" y="45" text-anchor="middle">labC</text>
 <text class="tick" x="400" y="45">δ = log₁₀ 5 · 5.01× [2.64, 9.26]</text>
 </svg></div>
-<figcaption><b>Figure 4.</b> The comparison graph of the toy example, with the edge
-ratios and the offsets phenocal estimates (median fold and 95% credible interval
-against the anchor labA).</figcaption>
+<figcaption><b>Figure 5.</b> The comparison graph of the toy example, with the edge ratios
+and the offsets estimated by phenocal (median fold and 95% interval relative to the anchor
+labA).</figcaption>
 </figure>
 
-<p>Only differences of offsets are identified, so one cohort, the anchor, is fixed
-at 0 (<code>--anchor</code>, by default the largest cohort). The anchor is a choice of
-units, like choosing which laboratory's scale to report in: changing it shifts all
-harmonised values by the same factor and leaves every comparison between isolates
-unchanged. The graph must be connected: a cohort with no genetic link to the others
-cannot be calibrated, and phenocal says so. Cohorts linked only through other cohorts
-are fine: labC can be calibrated against labA through labB.</p>
+<div class="env prop"><p><span class="env-h">Proposition 1 <span class="name">(anchor invariance; Lemma 1 of <span class="cite">[<a href="#ref-1">1</a>]</span>)</span>.</span>
+Let \(\hat\delta\) solve Eq. (7) with anchor \(a\) and \(\hat\delta'\) with anchor \(b\). Then
+\(\hat\delta' = \hat\delta - \hat\delta_b \mathbf 1\). Consequently every contrast
+\(\hat\delta_a - \hat\delta_b\), and every label obtained by comparing a harmonised value with
+a threshold expressed on the same anchored scale, does not depend on the choice of the
+anchor.</p></div>
+<div class="proof"><p>The objective depends on \(\delta\) only through differences, hence is
+invariant under \(\delta \mapsto \delta + k\mathbf 1\). For a connected graph the weighted
+Laplacian has a one-dimensional null space spanned by \(\mathbf 1\), so each anchor selects
+the unique minimiser on that line, and two anchors give solutions that differ by a
+constant. Re-anchoring multiplies harmonised values and thresholds by the same factor, so
+no label changes.</p></div>
 
-<h3 id="uncertainty"><span class="n">3.5</span>Uncertainty</h3>
-<p>Every edge is uncertain, so the offsets are too. phenocal draws each edge value from
-\(\mathcal N(\Delta_{ab}, \mathrm{SE}_{ab}^2)\), solves the graph again, and repeats this
-<code>--bootstrap</code> times (10,000 by default). The reported offset is the median of the
-draws and the 95% credible interval spans their 2.5th and 97.5th percentiles.
-<code>--robust</code> draws from a Student-t instead of a normal.</p>
-<div class="callout">Near-identical pairs are often nested in clonal clusters, and pairs from
-the same cluster are not independent. With <code>--clusters</code> (a table
-<code>sample → cluster</code>), phenocal also reports a cluster-weighted estimate and an
-interval that resamples whole clusters across the graph, the preferred summary when
-cluster ids are available.</div>
+<h3 id="uncertainty"><span class="n">2.6</span>Uncertainty</h3>
+<p>phenocal propagates the uncertainty of the edges by a parametric bootstrap
+<span class="cite">[<a href="#ref-5">5</a>]</span>: each edge value is drawn from \(\mathcal N(\Delta_{ab}, \mathrm{SE}_{ab}^2)\),
+Eq. (7) is solved again, and this is repeated \(B\) times (<code>--bootstrap</code>,
+\(B = 10\,000\)). The reported offset is the median of the draws, and the 95% interval
+spans their 2.5th and 97.5th percentiles. For this Gaussian scheme the result is also
+available in closed form.</p>
 
-<h3 id="labels"><span class="n">3.6</span>Harmonised values and probabilistic labels</h3>
-<p>The harmonised value of an isolate is its raw value brought to the anchor's scale,
-\(\text{value} / 10^{\hat\delta_c}\). Because \(\hat\delta_c\) is uncertain, so is the
-label of an isolate near a threshold. For each threshold \(c\) of <code>--thresholds</code>,
-phenocal reports the probability that the harmonised value is at least \(c\), over the
-uncertainty of the cohort offset:</p>
-$$ P_i(c) = \Pr\!\big( y_i - \delta_{c(i)} \ge \log_{10} c \big),
-\qquad \delta_{c(i)} \sim \mathcal N\big(\hat\delta_{c(i)},\, s_{c(i)}^2\big), $$
-<p>with \(s_c\) the half-width of the 95% interval divided by 1.96.</p>
+<div class="env prop"><p><span class="env-h">Proposition 2 <span class="name">(exact distribution)</span>.</span>
+If the edge values are perturbed independently as \(\Delta^{*}_{ab} \sim \mathcal N(\Delta_{ab},
+\mathrm{SE}_{ab}^2)\), the bootstrap offsets are exactly normal,
+\(\hat\delta^{*} \sim \mathcal N\big(\hat\delta,\ (A^{\top} W A)^{-1}\big)\). The bootstrap median
+therefore estimates the least-squares solution \(\hat\delta\), and the interval estimates
+\(\hat\delta_c \pm 1.96\,[(A^{\top} W A)^{-1}]_{cc}^{1/2}\), up to Monte Carlo error.</p></div>
+<div class="proof"><p>By Eq. (8), \(\hat\delta^{*} = (A^{\top} W A)^{-1} A^{\top} W \Delta^{*}\) is linear in
+\(\Delta^{*}\), whose covariance is \(W^{-1}\). Hence \(\hat\delta^{*}\) is normal with mean
+\(\hat\delta\) and covariance \((A^{\top} W A)^{-1} A^{\top} W\, W^{-1}\, W A\,(A^{\top} W A)^{-1} =
+(A^{\top} W A)^{-1}\).</p></div>
+
+<p>The bootstrap is kept because two variants have no closed form: <code>--robust</code>
+draws the perturbations from a Student-\(t\) distribution, and <code>--clusters</code>
+resamples whole clonal clusters. The latter matters because near-identical pairs are
+often nested in clusters, and pairs from the same cluster are not independent; given a
+table assigning isolates to clusters, phenocal reports a cluster-weighted estimate and an
+interval that resamples clusters across the graph, the preferred summary when cluster
+identifiers are available. Proposition 2 is verified numerically in Section 6 of the
+<a href="worked.html#uncertainty">supplementary material</a>.</p>
+
+<h3 id="labels"><span class="n">2.7</span>Harmonised values and probabilistic labels</h3>
+<p>The harmonised value of isolate \(i\) is its value on the anchor's scale,
+\(m_i / 10^{\hat\delta_{c(i)}}\). Because \(\hat\delta_c\) is uncertain, so is the class of an
+isolate close to a threshold. For each threshold \(t\) (<code>--thresholds</code>) phenocal
+reports</p>
+$$ P_i(t) = \Pr\big(y_i - \delta_{c(i)} \ge \log_{10} t\big)
+= \Phi\!\left(\frac{y_i - \hat\delta_{c(i)} - \log_{10} t}{s_{c(i)}}\right),
+\qquad \delta_c \sim \mathcal N(\hat\delta_c, s_c^2), \tag{9} $$
+<p>where \(s_c\) is the half-width of the 95% interval of \(\delta_c\) divided by 1.96 and
+\(\Phi\) the standard normal distribution function; phenocal evaluates Eq. (9) by Monte
+Carlo. Isolates of the anchor cohort have no offset uncertainty and receive probabilities
+0 or 1 (Figure 6).</p>
 
 <figure>
 <div class="fig"><svg viewBox="0 0 720 250" role="img" aria-labelledby="f5t">
@@ -473,30 +625,30 @@ $$ P_i(c) = \Pr\!\big( y_i - \delta_{c(i)} \ge \log_{10} c \big),
 <line class="axis" x1="558.6" x2="558.6" y1="190" y2="195"/>
 <text class="tick" x="558.6" y="209" text-anchor="middle">2</text>
 <line class="tau" x1="432.8" x2="432.8" y1="30" y2="190"/>
-<text class="note" x="438.8" y="44">threshold c = 1.25</text>
+<text class="note" x="438.8" y="44">threshold t = 1.25</text>
 <text class="big" x="544.9" y="95">P = 0.25</text>
 <text class="tick" x="345.0" y="48" text-anchor="end">s2_B harmonised: 1.007</text>
 <text class="tick" x="375.0" y="230" text-anchor="middle">harmonised value of s2_B over the uncertainty of the labB offset (log scale)</text>
 </svg></div>
-<figcaption><b>Figure 5.</b> Isolate s2_B of the toy example: its harmonised value is
-1.007, close to the threshold 1.25, and the labB offset is uncertain, so the
-probability of being at or above 1.25 is 0.25 (the Monte Carlo estimate in
-<code>labels.tsv</code> is 0.256). An isolate of the anchor cohort has no offset uncertainty and gets
-probability 0 or 1.</figcaption>
+<figcaption><b>Figure 6.</b> Isolate s2_B of the toy example. Its harmonised value, 1.007,
+is close to the threshold 1.25 and the offset of labB is uncertain, so Eq. (9) gives a
+probability of 0.25 of being at or above 1.25 (the Monte Carlo estimate in
+<code>labels.tsv</code> is 0.256).</figcaption>
 </figure>
 
-<p>Instead of a hard label that may flip with a small change in the offset, a downstream
-model can use these probabilities, or drop the isolates whose label is uncertain.
-Finally, phenocal estimates a data-driven cutoff on the harmonised scale with two
-methods that bracket it: the antimode of a kernel density estimate and the crossover
-of a two-component Gaussian mixture, with a bootstrap interval.</p>
+<p>A downstream model can use these probabilities in place of a hard label that might
+flip under a small change of the offset, or leave out the isolates whose label is
+uncertain. Finally, phenocal estimates a data-driven cutoff on the harmonised scale by two
+methods that bracket it, the antimode of a kernel density estimate <span class="cite">[<a href="#ref-6">6</a>]</span> and
+the crossover of a two-component Gaussian mixture, with a bootstrap interval.</p>
 
-<h2 id="ml"><span class="n">4</span>Why it matters for machine learning</h2>
-<p>phenocal is a pre-processing step for supervised learning on pooled cohorts: it fixes
-the <em>target</em>, the phenotype, before any model sees it. Its inputs are the
-phenotypes, the cohort labels and the genomic distances, never the model's features or the
-model itself, so it can sit in front of any classifier or regressor.</p>
+<h2 id="ml"><span class="n">3</span>Calibration before supervised learning</h2>
+<p>phenocal is a pre-processing step for supervised learning on pooled cohorts: it corrects
+the target, the phenotype, before any model is trained. Its inputs are the phenotypes, the
+cohort labels and the genomes, never the features or the model, so it can precede any
+classifier or regressor without leaking information from the evaluation (Figure 7).</p>
 
+<figure>
 <pre class="mermaid">flowchart LR
     R[/"Raw phenotypes&lt;br/>+ cohort labels"/] --> PC["phenocal"]
     G[/"Allelic profiles&lt;br/>or genomic distances"/] --> PC
@@ -506,21 +658,21 @@ model itself, so it can sit in front of any classifier or regressor.</p>
     F --> M2
     L1 --> M1["Classifier"]
     L2 --> M2["Regressor"]</pre>
+<figcaption><b>Figure 7.</b> Position of phenocal in a learning pipeline. The calibration
+reads the genomes only to find natural controls; the features of the model are not
+involved.</figcaption>
+</figure>
 
-<h3 id="classifier"><span class="n">4.1</span>Classifiers</h3>
-<p>A classifier needs a label, usually obtained by cutting the phenotype at a threshold
-(for example tolerant if MIC ≥ 1.25 mg/L). With raw values, a cohort whose protocol reads
-high falls entirely above the threshold and a cohort that reads low falls mostly below
-it. Two things then go wrong:</p>
-<ul>
-<li><b>The model learns the cohort.</b> Cohorts usually sample different populations, so the
-genome tells which cohort an isolate comes from. A classifier trained on pooled raw labels
-can look accurate by recognising the cohort rather than the trait, and nothing in a random
-cross-validation reveals it.</li>
-<li><b>The honest test is impossible.</b> The real question is whether the model transfers to
-cohorts it was not trained on. If the held-out cohorts contain a single class, balanced
-accuracy and ROC-AUC are undefined: the endpoint cannot be evaluated at all.</li>
-</ul>
+<h3 id="classifier"><span class="n">3.1</span>Classification</h3>
+<p>A classifier needs a label, usually obtained by cutting the phenotype at a threshold.
+With raw values, a cohort whose protocol reads high falls entirely above the threshold and
+one that reads low falls mostly below it, and two problems follow. First, since cohorts
+usually sample different populations, the genome reveals the cohort, and a classifier
+trained on pooled raw labels can appear accurate by recognising the cohort rather than the
+trait, which a random cross-validation does not reveal. Second, the question of interest,
+whether the model transfers to cohorts it was not trained on, may become impossible to
+answer: if the held-out cohorts contain a single class, balanced accuracy and ROC-AUC are
+undefined.</p>
 
 <figure>
 <div class="fig"><svg viewBox="0 0 720 210" role="img" aria-labelledby="f6t">
@@ -537,124 +689,143 @@ accuracy and ROC-AUC are undefined: the endpoint cannot be evaluated at all.</li
 <text class="barl" x="575.4" y="152" text-anchor="middle">143 tolerant</text>
 <text class="tick" x="190" y="182">two classes: ROC-AUC 0.999 (wgMLST), 0.748 (cgMLST)</text>
 </svg></div>
-<figcaption><b>Figure 6.</b> The case of the AIS 2026 paper: benzalkonium-chloride MICs of
-<i>Listeria monocytogenes</i> from five laboratory cohorts, trained on three (Palma, Kragh,
-Ivanova) and tested on the other two (Cooper, He). With raw labels all 312 test isolates
-are tolerant, so the test cannot be scored. After calibration the same split, threshold and
-learner give a two-class test set.</figcaption>
+<figcaption><b>Figure 8.</b> The case study of <span class="cite">[<a href="#ref-1">1</a>]</span>: benzalkonium-chloride MICs
+of <i>Listeria monocytogenes</i> from five laboratory cohorts
+<span class="cite">[<a href="#ref-7">7</a>, <a href="#ref-8">8</a>, <a href="#ref-9">9</a>, <a href="#ref-10">10</a>, <a href="#ref-11">11</a>]</span>, with training on three (Palma, Kragh, Ivanova)
+and testing on the other two (Cooper, He). With raw labels all 312 test isolates are
+tolerant and the test cannot be scored; after calibration the same split, threshold and
+learner yield a two-class test set.</figcaption>
 </figure>
 
-<p>On that restored endpoint the paper reports, for a gradient-boosted tree classifier on
+<p>On the restored endpoint the paper reports, for a gradient-boosted tree classifier on
 allelic profiles, a forward ROC-AUC of 0.999 with wgMLST features and 0.748 with cgMLST
-features, and 0.880 in the reverse direction. The endpoint stays evaluable across the
-pre-declared thresholds 0.6–2.0 mg/L, with the AUC moving only mildly with the cutoff, and
-the result is not leakage: it falls to chance with permuted training
-labels and with a cohort-only baseline (AUC 0.50), and is unchanged when the isolates used
-as calibration twins are removed from training. These values show that the endpoint has
-become evaluable; they are not proof that the calibrated MICs are the biological truth.</p>
+features, and 0.880 in the reverse direction. The endpoint remains evaluable across the
+pre-declared thresholds 0.6–2.0 mg/L, with the AUC changing only mildly with the cutoff.
+The result does not arise from leakage: it falls to chance with permuted training labels
+and with a cohort-only baseline (AUC 0.50), and it is unchanged when the isolates used as
+calibration controls are removed from training. These figures show that the endpoint has
+become evaluable; they do not show that the calibrated MICs are the biological truth.</p>
+<p>The probabilities of Eq. (9) offer two further options beyond the hard label: they can
+serve as soft targets or sample weights, or training can be restricted to isolates whose
+class is stable (for instance \(P_i(t) < 0.1\) or \(> 0.9\)).</p>
 
-<p>The probabilistic labels \(P_i(c)\) give two more options beyond the hard label: use them
-as soft targets or sample weights, or train only on isolates whose label is stable (for
-example \(P_i(c) < 0.1\) or \(> 0.9\)) and leave the uncertain ones out. Isolates of the anchor
-cohort always get 0 or 1; in other cohorts the probability departs from 0 or 1 only near
-the threshold, and more so the less certain the cohort offset.</p>
-
-<h3 id="regressor"><span class="n">4.2</span>Regressors</h3>
-<p>To predict the phenotype itself, for example the MIC rather than a tolerant/sensitive
-call, the target is the log value \(y_i = \mu_i + \delta_{c(i)} + \varepsilon_i\). Trained
-on raw values, a regressor has to explain the offsets \(\delta_c\) too, and because cohort
-and genome are correlated it attributes them to the genome. Its predictions then mix
-biology with protocol, are on no particular laboratory's scale, and carry the offset of
-whichever cohort a new isolate resembles; prediction errors measured across cohorts are
-inflated by the offsets rather than reflecting the biology.</p>
-<p>Trained on the harmonised log values \(y_i - \hat\delta_{c(i)}\), the regressor sees one
-scale, the anchor's, and only biology and noise remain to explain. The calibration
-uncertainty can be carried along: \(s_{c}^2\), the variance of the cohort offset, adds to
-the noise of every target in cohort \(c\), so weights such as
+<h3 id="regressor"><span class="n">3.2</span>Regression</h3>
+<p>When the phenotype itself is predicted, the target is \(y_i = \mu_i + \delta_{c(i)} +
+\varepsilon_i\). Trained on raw values, a regressor must account for the offsets as well,
+and because cohort and genome are correlated it attributes them to the genome; its
+predictions then mix biology with protocol, refer to no particular laboratory's scale, and
+carry the offset of whichever cohort a new isolate resembles. Trained on the harmonised
+values \(y_i - \hat\delta_{c(i)}\), it sees a single scale, the anchor's, and only biology
+and noise remain to be explained. The calibration uncertainty can be carried along, since
+\(s_c^2\) adds to the noise of every target in cohort \(c\) and weights such as
 \(1/(\sigma_c^2 + s_c^2)\) let well-calibrated cohorts count more. The paper evaluates the
-classification endpoint; for regression the same argument holds, but we report no
-regression results here.</p>
+classification endpoint; the argument for regression is the same, but no regression
+results are reported.</p>
 
-<h3 id="whynot"><span class="n">4.3</span>Why not correct the features, or use a bigger model?</h3>
-<ul>
-<li><b>The shift is in the labels, not in the features.</b> Batch corrections such as ComBat act on
-the features. Applied to the phenotype as a per-cohort mean-centering, they remove every
-difference between cohort means, including the real biological ones when cohorts sample
-different populations, and over-correct. phenocal estimates the offset only from isolates
-whose biology is held fixed by the genome.</li>
-<li><b>Model capacity does not replace calibration.</b> In the paper's simulations, larger
-neural models trained on uncalibrated labels do no better than logistic regression, while
-calibration improves every learner tested.</li>
-</ul>
+<h3 id="related"><span class="n">3.3</span>Relation to batch-effect correction and label noise</h3>
+<p>Batch-effect methods such as ComBat <span class="cite">[<a href="#ref-12">12</a>]</span> and the linear-model correction of
+limma <span class="cite">[<a href="#ref-13">13</a>]</span> address shifts in the <em>features</em>, which are well documented in
+high-throughput data <span class="cite">[<a href="#ref-14">14</a>]</span>; covariate-shift corrections likewise reweight the
+feature distribution <span class="cite">[<a href="#ref-15">15</a>]</span>. Here the shift is in the <em>label</em>. Applied
+to the phenotype as a per-cohort centring, a batch correction removes every difference
+between cohort means, including the biological ones when cohorts sample different
+populations, whereas phenocal estimates the offset only from isolates whose biology is
+held fixed by the genome. Nor is the problem one of random label noise
+<span class="cite">[<a href="#ref-16">16</a>]</span>: the error is systematic and shared by a whole cohort, so model capacity
+does not remove it, and in the paper's simulations larger neural models trained on
+uncalibrated labels did no better than logistic regression, while calibration improved
+every learner tested.</p>
 
-<h2 id="example"><span class="n">5</span>Worked example</h2>
-<p>The toy example is in the repository and runs in a fraction of a second:</p>
+<h2 id="example"><span class="n">4</span>Illustrative example</h2>
+<p>The toy example of Figure 1 is included in the repository and runs in a fraction of a
+second:</p>
 <pre><code>phenocal --phenotypes examples/toy_phenotypes.tsv \
          --profiles examples/toy_profiles.tsv \
          --anchor labA --min-support 2 --out toy</code></pre>
-<p>Three strains (s1, s2, s3) are measured in three laboratories. Every strain is present
-in every laboratory, so every pair of cohorts has three pairs at distance 0.</p>
-<div class="tablewrap"><table>
+<p>Three strains are each measured by three laboratories, so every pair of cohorts has
+three pairs at distance zero. For labA and labB the three log-ratios all equal
+\(\log_{10} 0.5\), so \(\Delta_{AB} = -0.301\) with
+\(\mathrm{SE} = \sqrt{(0.213^2 + 0.213^2)/3} = 0.174\). The three edges are mutually
+consistent (\(2 \times 2.5 = 5\)), and Eq. (7) gives \(\delta_B = \log_{10} 2\) and
+\(\delta_C = \log_{10} 5\). phenocal reports labB 1.99× [1.05, 3.78] and labC 5.01×
+[2.64, 9.26] relative to labA, centred on the true factors and wide because each edge
+rests on only three pairs. After calibration each strain has the same value in every
+laboratory to within 1% (Table 1).</p>
+
+<div class="tablewrap">
+<p class="tcap"><b>Table 1.</b> Raw and harmonised values of the toy example
+(<code>harmonised.tsv</code>).</p>
+<table>
 <thead><tr><th>sample</th><th>cohort</th><th class="num">raw value</th><th class="num">harmonised</th></tr></thead>
 <tbody><tr><td>s1_A</td><td>labA</td><td class="num">0.5</td><td class="num">0.500</td></tr><tr><td>s1_B</td><td>labB</td><td class="num">1</td><td class="num">0.504</td></tr><tr><td>s1_C</td><td>labC</td><td class="num">2.5</td><td class="num">0.499</td></tr><tr><td>s2_A</td><td>labA</td><td class="num">1</td><td class="num">1.000</td></tr><tr><td>s2_B</td><td>labB</td><td class="num">2</td><td class="num">1.007</td></tr><tr><td>s2_C</td><td>labC</td><td class="num">5</td><td class="num">0.999</td></tr><tr><td>s3_A</td><td>labA</td><td class="num">2</td><td class="num">2.000</td></tr><tr><td>s3_B</td><td>labB</td><td class="num">4</td><td class="num">2.015</td></tr><tr><td>s3_C</td><td>labC</td><td class="num">10</td><td class="num">1.998</td></tr></tbody>
 </table></div>
-<p>For labA and labB the three log-ratios are all \(\log_{10}(0.5)\), so
-\(\Delta_{AB} = -0.301\), with
-\(\mathrm{SE} = \sqrt{(0.213^2 + 0.213^2 + 0)/3} = 0.174\). The three edges agree
-(\(2 \times 2.5 = 5\)), and the solution is \(\delta_B = \log_{10} 2\) and
-\(\delta_C = \log_{10} 5\). phenocal reports labB 1.99× [1.05, 3.78] and labC 5.01×
-[2.64, 9.26] against labA: centred on the true factors, and wide because each edge rests
-on three pairs only. After calibration each strain has the same value in every
-laboratory (0.50, 1.00, 2.00 within 1%).</p>
-<p>The same result comes from the distance matrix
-<code>examples/toy_distance_matrix.tsv</code> or the pair table
-<code>examples/toy_pairs.tsv</code> given with <code>--pairs</code>; the repository tests
-check that the three inputs give identical outputs. Add
-<code>--dashboard toy.html</code> for an interactive report of the run, or
-<code>--trace toy.md</code> for the same calculations written out step by step with the
-actual numbers.</p>
-<div class="callout">For every calculation done by hand, see the
-<a href="worked.html">worked example</a>: a small data set with noise, taken from the allelic
-profiles through τ, the edge values, the least-squares solution and its uncertainty to the
-probabilistic labels.</div>
 
-<h2 id="limits"><span class="n">6</span>Assumptions and limits</h2>
-<ul>
-<li><b>Identical genomes share their biology.</b> Isolates at small allelic distance are
-assumed to have the same true phenotype. The adaptive bound τ and the λ·τ term limit the
-effect of the biology that remains between near-identical isolates; pairs at distance 0
-are the cleanest evidence.</li>
-<li><b>The laboratory effect is a constant factor.</b> Each cohort scales all its values by
-one factor (a constant shift on the log scale). Effects that depend on the value itself
-are not modelled.</li>
-<li><b>The comparison graph must be connected</b> through genetically linked isolates.
-Cohorts that share no clone with any other cohort cannot be calibrated.</li>
-</ul>
-<div class="callout warn"><b>What cannot be told apart.</b> A biological difference that affects every isolate of one cohort in the
-same way, including its clones shared with other cohorts, looks exactly like a
-protocol offset and would be calibrated away. Biology specific to some strains does not
-have this problem: it makes the log-ratios grow with genomic distance, which is what the
-bound τ detects.</div>
+<p>The same results are obtained from the distance matrix
+<code>examples/toy_distance_matrix.tsv</code> and from the pair table
+<code>examples/toy_pairs.tsv</code> given with <code>--pairs</code>; the test suite checks
+that the three inputs give identical outputs. Because the toy is noiseless, it exercises
+neither the adaptive bound nor the least-squares compromise. The
+<a href="worked.html">supplementary material</a> therefore follows a small example with
+noise through every step by hand, from the allelic profiles to the probabilistic labels,
+and checks each number against the output of phenocal.</p>
 
-<h2 id="cite"><span class="n">7</span>Citation</h2>
-<p>de Ruvo A, Castelli P, Di Pasquale A, Radomski N. <i>PhenoCal: Natural-Control Label
-Calibration for Cross-Cohort Machine Learning.</i> 12th International Artificial
-Intelligence Symposium (AIS 2026), Springer Lecture Notes in Computer Science.
-The code as used in the paper is frozen at the
-<a href="https://github.com/genpat-it/phenocal/tree/ais2026"><code>ais2026</code></a> tag;
-the reproducibility archive is
-<a href="https://doi.org/10.5281/zenodo.21461769">doi:10.5281/zenodo.21461769</a>.</p>
+<h2 id="limits"><span class="n">5</span>Assumptions and limitations</h2>
+<p>The method rests on three assumptions. Isolates at small allelic distance are assumed to
+share their true phenotype; the adaptive bound and the \(\lambda\tau\) term limit the
+influence of the biology that remains between near-identical isolates, and pairs at
+distance zero are the cleanest evidence. Each laboratory is assumed to scale all its
+values by one factor, a constant shift on the logarithmic scale; effects that depend on
+the value itself are not modelled. Finally, the comparison graph must be connected through
+genetically linked isolates, and cohorts that share no clone with any other cannot be
+calibrated.</p>
+<div class="remark warn"><p><span class="env-h">Remark (identifiability).</span>
+A biological difference that affects every isolate of one cohort in the same way,
+including its clones shared with other cohorts, is indistinguishable from a protocol
+offset and would be calibrated away. Biology specific to some strains does not have this
+problem, since it makes the log-ratios grow with genomic distance, which is what the
+adaptive bound detects.</p></div>
+
+<h2 id="software"><span class="n">6</span>Software availability</h2>
+<p>phenocal is written in Rust without external dependencies and released under the MIT
+licence at <a href="https://github.com/genpat-it/phenocal">github.com/genpat-it/phenocal</a>.
+It is distributed as static binaries for Linux, macOS and Windows (installable with a
+one-line script), as the Docker image <code>ghcr.io/genpat-it/phenocal</code>, and on
+crates.io (<code>cargo install phenocal</code>). Each run writes the offsets, the per-cohort
+resolutions, the edges, the harmonised values, the probabilistic labels and the cutoff as
+tab-separated tables, and optionally an interactive report (<code>--dashboard</code>) and a
+step-by-step trace of the calculation with the numbers of the run (<code>--trace</code>).
+The code as used in the paper is frozen at the tag
+<a href="https://github.com/genpat-it/phenocal/tree/ais2026"><code>ais2026</code></a>; later
+releases add input formats and packaging and give identical results on the same input.</p>
+
+<h2 id="cite">How to cite</h2>
+<p>If you use phenocal, please cite <span class="cite">[<a href="#ref-1">1</a>]</span>:</p>
+<pre class="bib"><code>@inproceedings{deruvo2026phenocal,
+  title     = {{PhenoCal}: Natural-Control Label Calibration for
+               Cross-Cohort Machine Learning},
+  author    = {de Ruvo, Andrea and Castelli, Pierluigi and
+               Di Pasquale, Adriano and Radomski, Nicolas},
+  booktitle = {12th International Artificial Intelligence Symposium (AIS 2026)},
+  series    = {Lecture Notes in Computer Science},
+  publisher = {Springer Nature},
+  year      = {2026}
+}</code></pre>
+
+<h2 id="refs">References</h2>
+<ol class="refs"><li id="ref-1">de Ruvo A, Castelli P, Di Pasquale A, Radomski N. PhenoCal: natural-control label calibration for cross-cohort machine learning. In: <i>12th International Artificial Intelligence Symposium (AIS 2026)</i>. Lecture Notes in Computer Science. Springer Nature; 2026. Reproducibility archive: <a href="https://doi.org/10.5281/zenodo.21461769">doi:10.5281/zenodo.21461769</a>.</li><li id="ref-2">Silva M, Machado MP, Silva DN, Rossi M, Moran-Gilad J, Santos S, Ramirez M, Carriço JA. chewBBACA: a complete suite for gene-by-gene schema creation and strain identification. <i>Microbial Genomics</i>. 2018;4(3):e000166. <a href="https://doi.org/10.1099/mgen.0.000166">doi:10.1099/mgen.0.000166</a>.</li><li id="ref-3">Seemann T. cgmlst-dists: calculate distance matrix from cgMLST allele call tables. Software. <a href="https://github.com/tseemann/cgmlst-dists">github.com/tseemann/cgmlst-dists</a>.</li><li id="ref-4">Mixão V, Pinto M, Sobral D, Di Pasquale A, Gomes J, Borges V. ReporTree: a surveillance-oriented tool to strengthen the linkage between pathogen genetic clusters and epidemiological data. <i>Genome Medicine</i>. 2023;15(1):43. <a href="https://doi.org/10.1186/s13073-023-01196-1">doi:10.1186/s13073-023-01196-1</a>.</li><li id="ref-5">Efron B. Bootstrap methods: another look at the jackknife. <i>The Annals of Statistics</i>. 1979;7(1):1–26. <a href="https://doi.org/10.1214/aos/1176344552">doi:10.1214/aos/1176344552</a>.</li><li id="ref-6">Silverman BW. <i>Density Estimation for Statistics and Data Analysis</i>. London: Chapman &amp; Hall; 1986.</li><li id="ref-7">Palma F, Radomski N, Guérin A, et al. Genomic elements located in the accessory repertoire drive the adaptation to biocides in <i>Listeria monocytogenes</i> strains from different ecological niches. <i>Food Microbiology</i>. 2022;106:103757. <a href="https://doi.org/10.1016/j.fm.2021.103757">doi:10.1016/j.fm.2021.103757</a>.</li><li id="ref-8">Kragh ML, Ivanova M, Dalgaard P, Leekitcharoenphon P, Truelstrup Hansen L. Sensitivity of 240 <i>Listeria monocytogenes</i> isolates to common industrial biocides is more dependent on the presence of residual organic matter or biofilm than on genetic determinants. <i>Food Control</i>. 2024;158:110244. <a href="https://doi.org/10.1016/j.foodcont.2023.110244">doi:10.1016/j.foodcont.2023.110244</a>.</li><li id="ref-9">Ivanova M, Kragh ML, Szarvas J, et al. Large-scale phenotypic and genomic analysis of <i>Listeria monocytogenes</i> reveals diversity in the sensitivity to quaternary ammonium compounds but not to peracetic acid. <i>Applied and Environmental Microbiology</i>. 2025;91:e01829-24. <a href="https://doi.org/10.1128/aem.01829-24">doi:10.1128/aem.01829-24</a>.</li><li id="ref-10">Cooper AL, Carrillo CD, Deschênes M, Blais BW. Genomic markers for quaternary ammonium compound resistance as a persistence indicator for <i>Listeria monocytogenes</i> contamination in food manufacturing environments. <i>Journal of Food Protection</i>. 2021;84(3):389–398. <a href="https://doi.org/10.4315/JFP-20-328">doi:10.4315/JFP-20-328</a>.</li><li id="ref-11">He Y, Xu T, Li S, Mann DA, Britton B, Oliver HF, den Bakker HC, Deng X. Integrative assessment of reduced <i>Listeria monocytogenes</i> susceptibility to benzalkonium chloride in produce processing environments. <i>Applied and Environmental Microbiology</i>. 2022;88(21):e01269-22. <a href="https://doi.org/10.1128/aem.01269-22">doi:10.1128/aem.01269-22</a>.</li><li id="ref-12">Johnson WE, Li C, Rabinovic A. Adjusting batch effects in microarray expression data using empirical Bayes methods. <i>Biostatistics</i>. 2007;8(1):118–127. <a href="https://doi.org/10.1093/biostatistics/kxj037">doi:10.1093/biostatistics/kxj037</a>.</li><li id="ref-13">Ritchie ME, Phipson B, Wu D, Hu Y, Law CW, Shi W, Smyth GK. limma powers differential expression analyses for RNA-sequencing and microarray studies. <i>Nucleic Acids Research</i>. 2015;43(7):e47. <a href="https://doi.org/10.1093/nar/gkv007">doi:10.1093/nar/gkv007</a>.</li><li id="ref-14">Leek JT, Scharpf RB, Bravo HC, et al. Tackling the widespread and critical impact of batch effects in high-throughput data. <i>Nature Reviews Genetics</i>. 2010;11(10):733–739. <a href="https://doi.org/10.1038/nrg2825">doi:10.1038/nrg2825</a>.</li><li id="ref-15">Shimodaira H. Improving predictive inference under covariate shift by weighting the log-likelihood function. <i>Journal of Statistical Planning and Inference</i>. 2000;90(2):227–244. <a href="https://doi.org/10.1016/S0378-3758(00)00115-4">doi:10.1016/S0378-3758(00)00115-4</a>.</li><li id="ref-16">Frénay B, Verleysen M. Classification in the presence of label noise: a survey. <i>IEEE Transactions on Neural Networks and Learning Systems</i>. 2014;25(5):845–869. <a href="https://doi.org/10.1109/TNNLS.2013.2292894">doi:10.1109/TNNLS.2013.2292894</a>.</li></ol>
 
 </main>
 <footer>
 phenocal is free software under the MIT licence, developed at the Istituto Zooprofilattico
-Sperimentale dell'Abruzzo e del Molise "G. Caporale" (IZSAM).
-<a href="https://github.com/genpat-it/phenocal">github.com/genpat-it/phenocal</a>
+Sperimentale dell'Abruzzo e del Molise “G. Caporale” (IZSAM) and the Gran Sasso Science
+Institute (GSSI). <a href="https://github.com/genpat-it/phenocal">github.com/genpat-it/phenocal</a>
 </footer>
+
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
 <script>
   const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  mermaid.initialize({ startOnLoad: true, theme: dark ? 'dark' : 'neutral' });
+  mermaid.initialize({ startOnLoad: true, theme: dark ? 'dark' : 'neutral',
+    themeVariables: { fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif' } });
 </script>
 </body>
 </html>

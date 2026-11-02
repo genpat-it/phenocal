@@ -3,26 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>phenocal — worked example</title>
-<meta name="description" content="The phenocal calibration worked out by hand on a small example, from allelic profiles to probabilistic labels.">
+<title>Worked example: the calibration computed by hand — phenocal</title>
+<meta name="description" content="Supplementary material: the phenocal calibration worked out by hand on a small example, from allelic profiles to probabilistic labels.">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
   onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\(',right:'\\)',display:false}]})"></script>
 <style>
 :root {
-  --bg: #fbfaf7; --fg: #1d2129; --muted: #5d6573; --line: #d9dce2; --soft: #f0efe9;
-  --accent: #2458a6; --accent-soft: #e3ebf7; --warn: #b4530a;
+  --bg: #fdfcf9; --fg: #1b1d22; --muted: #5a606b; --line: #d6d8dd; --soft: #f2f1ec;
+  --accent: #1f4e96; --accent-soft: #e4ebf6; --warn: #b4530a;
   --s1: #2a7f62; --s2: #c46a1b; --s3: #6b4fa8;
   --a1: #9fb8d8; --a2: #e3c48f; --a3: #b9d3b0;
   --nA: #dfe9f6; --nB: #f6e7d6; --nC: #e9e2f4;
   --code: #f2f1ec;
+  --serif: "Charter", "Bitstream Charter", "Iowan Old Style", "Palatino Linotype", Palatino,
+           "Source Serif Pro", "Noto Serif", Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #15181d; --fg: #e6e8ec; --muted: #9aa3b2; --line: #343a45; --soft: #1d2128;
-    --accent: #7fa8e6; --accent-soft: #1f2b3d; --warn: #f0a35e;
+    --bg: #15181d; --fg: #e6e8ec; --muted: #9aa3b2; --line: #3a404b; --soft: #1d2128;
+    --accent: #8db1ea; --accent-soft: #1f2b3d; --warn: #f0a35e;
     --s1: #5cc29b; --s2: #ee9b52; --s3: #a993e0;
     --a1: #4f6f99; --a2: #9a7a45; --a3: #5d8452;
     --nA: #22314a; --nB: #3f2e1d; --nC: #33284a;
@@ -32,44 +35,110 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg);
-  font: 17px/1.62 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
-main { max-width: 780px; margin: 0 auto; padding: 0 20px 80px; }
-header { max-width: 780px; margin: 0 auto; padding: 56px 20px 8px; }
-h1 { font: 600 2.4rem/1.15 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0 0 .3em; letter-spacing: -.01em; }
-h1 code { font: inherit; background: none; padding: 0; }
-.lede { font-size: 1.2rem; color: var(--muted); margin: 0 0 1.2em; }
-h2 { font: 600 1.45rem/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 2.6em 0 .6em;
-  padding-top: .6em; border-top: 1px solid var(--line); }
-h3 { font: 600 1.1rem/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 2em 0 .4em; }
-h2 .n, h3 .n { color: var(--accent); margin-right: .35em; }
-a { color: var(--accent); }
+  font: 17.5px/1.6 var(--serif); font-kerning: normal;
+  font-variant-numeric: lining-nums proportional-nums; }
+main, header.paper, footer { max-width: 760px; margin: 0 auto; padding-left: 22px; padding-right: 22px; }
+main { padding-bottom: 80px; }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
 p, li { hyphens: auto; }
-.mermaid p, .mermaid span, .mermaid div { hyphens: manual; }
-nav.links { display: flex; flex-wrap: wrap; gap: 8px 18px; font: 500 .95rem system-ui, sans-serif; }
-nav.toc { font: .95rem/1.7 system-ui, sans-serif; background: var(--soft); border-radius: 10px; padding: 14px 20px; margin: 1.6em 0; }
-nav.toc ol { margin: 0; padding-left: 1.3em; columns: 2; column-gap: 32px; }
-@media (max-width: 560px) { nav.toc ol { columns: 1; } h1 { font-size: 2rem; } }
-code, pre { font: .88em/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-code { background: var(--code); padding: .08em .3em; border-radius: 4px; }
-pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+main > p, .env p, .abstract p, main li { text-align: justify; }
+
+/* title block */
+header.paper { padding-top: 64px; padding-bottom: 8px; text-align: center; }
+.kicker { font: 600 .78rem/1.4 var(--sans); letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 1.1em; }
+header.paper h1 { font: 600 2rem/1.2 var(--serif); margin: 0 0 .7em; letter-spacing: -.005em; }
+.authors { font-size: 1.05rem; margin: 0 0 .5em; }
+.au { white-space: nowrap; }
+.au sup { font-size: .68em; margin-left: 1px; }
+.orcid { margin-left: 3px; vertical-align: 1px; text-decoration: none; }
+ol.affil { list-style: none; padding: 0; margin: 0; font-size: .86rem; color: var(--muted); line-height: 1.45; }
+ol.affil sup { margin-right: 2px; }
+.affil-note { font-size: .82rem; color: var(--muted); margin: .4em 0 1.2em; }
+nav.links { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px;
+  font: 500 .9rem var(--sans); margin: 1em 0 0; }
+
+/* abstract */
+.abstract { max-width: 640px; margin: 2.2em auto 1.4em; font-size: .96rem; line-height: 1.55; }
+.abstract h2 { all: unset; display: block; text-align: center; font: 600 .82rem var(--sans);
+  letter-spacing: .14em; text-transform: uppercase; margin-bottom: .5em; }
+.keywords { font-size: .9rem; color: var(--muted); margin-top: .8em; }
+.keywords b { color: var(--fg); font-weight: 600; }
+
+/* headings */
+h2 { font: 600 1.32rem/1.3 var(--serif); margin: 2.4em 0 .7em; }
+h3 { font: 600 1.08rem/1.35 var(--serif); margin: 1.9em 0 .5em; }
+h2 .n, h3 .n { margin-right: .55em; font-variant-numeric: lining-nums; }
+h4 { font: italic 600 1rem var(--serif); margin: 1.4em 0 .3em; }
+
+/* contents */
+nav.toc { font: .92rem/1.65 var(--serif); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  padding: 12px 4px; margin: 1.8em 0 1em; }
+nav.toc .h { font: 600 .78rem var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+nav.toc ol { margin: .4em 0 0; padding-left: 1.5em; columns: 2; column-gap: 36px; }
+nav.toc a { text-decoration: none; }
+@media (max-width: 600px) { nav.toc ol { columns: 1; } header.paper h1 { font-size: 1.6rem; } }
+
+/* definitions, propositions, proofs */
+.env { margin: 1.4em 0; padding: .2em 0 .2em 1em; border-left: 2px solid var(--accent); }
+.env .env-h { font-weight: 700; }
+.env .env-h .name { font-weight: 400; }
+.env.prop > p { font-style: italic; }
+.env.prop > p .katex { font-style: normal; }
+.proof { margin: -.6em 0 1.4em 1em; padding-left: 1em; }
+.proof > p:first-child::before { content: "Proof. "; font-style: italic; }
+.proof > p:last-child::after { content: " ∎"; }
+.remark { margin: 1.4em 0; padding: .2em 0 .2em 1em; border-left: 2px solid var(--line); }
+.remark .env-h { font-style: italic; }
+.remark.warn { border-left-color: var(--warn); }
+
+/* side notes: in the margin on wide screens, inline below */
+.sn { display: block; font: .84rem/1.45 var(--serif); color: var(--muted); margin: .4em 0 .8em;
+  padding-left: 1em; border-left: 1px solid var(--line); text-align: left; }
+@media (min-width: 1260px) {
+  .sn { float: right; clear: right; width: 220px; margin: .2em -262px 1em 0; padding-left: 0; border: 0; }
+}
+
+/* equations, code */
+.katex { font-size: 1.04em; }
+.katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; margin: 1em 0; }
+code, pre { font: .86em/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: normal; }
+code { background: var(--code); padding: .06em .3em; border-radius: 3px; hyphens: none; white-space: nowrap; }
+pre code { white-space: pre; }
+pre { background: var(--code); padding: 14px 16px; border-radius: 4px; overflow-x: auto; }
 pre code { background: none; padding: 0; }
-figure { margin: 1.6em 0; }
+
+/* figures */
+figure { margin: 2em 0; }
 figure .fig { overflow-x: auto; }
 figure svg { width: 100%; min-width: 560px; height: auto; display: block; }
-figcaption { font: .9rem/1.5 system-ui, sans-serif; color: var(--muted); margin-top: .5em; }
-.callout { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 12px 18px; border-radius: 0 8px 8px 0; margin: 1.4em 0; }
-.callout.warn { border-color: var(--warn); background: var(--soft); }
-.katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
-.tablewrap { overflow-x: auto; }
-table { border-collapse: collapse; font: .92rem/1.45 system-ui, sans-serif; margin: 1em 0; width: 100%; }
-th, td { border-bottom: 1px solid var(--line); padding: 6px 10px; text-align: left; }
-th { color: var(--muted); font-weight: 600; }
-td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-.mermaid { background: var(--soft); border-radius: 10px; padding: 14px; text-align: center; overflow-x: auto; }
-footer { max-width: 780px; margin: 0 auto; padding: 24px 20px 60px; color: var(--muted); font: .9rem system-ui, sans-serif; border-top: 1px solid var(--line); }
+figcaption { font: .9rem/1.5 var(--serif); color: var(--fg); margin-top: .7em; text-align: justify; hyphens: auto; }
+figcaption b:first-child, .tcap b:first-child { font-weight: 700; }
+.mermaid { text-align: center; overflow-x: auto; padding: 8px 0; }
+.mermaid p, .mermaid span, .mermaid div { hyphens: manual; }
+
+/* tables: booktabs */
+.tablewrap { overflow-x: auto; margin: 1.6em 0; }
+.tcap { font: .9rem/1.5 var(--serif); margin: 0 0 .5em; text-align: justify; }
+table { border-collapse: collapse; font: .9rem/1.45 var(--serif); width: 100%;
+  font-variant-numeric: lining-nums tabular-nums; border-top: 1.5px solid var(--fg); border-bottom: 1.5px solid var(--fg); }
+thead th { border-bottom: 1px solid var(--fg); font-weight: 600; }
+th, td { padding: 5px 10px; text-align: left; }
+td.num, th.num { text-align: right; }
+table.narrow { width: auto; }
+
+/* references */
+ol.refs { font-size: .9rem; line-height: 1.5; padding-left: 2.2em; }
+ol.refs li { margin: .35em 0; text-align: left; hyphens: manual; }
+ol.refs li::marker { content: "[" counter(list-item) "]  "; }
+.cite a { text-decoration: none; }
+pre.bib { font-size: .8rem; }
+
+footer { padding-top: 22px; padding-bottom: 60px; color: var(--muted); font: .85rem var(--serif);
+  border-top: 1px solid var(--line); }
 
 /* figure styling */
-svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--fg); }
+svg text { font-family: var(--sans); fill: var(--fg); }
 svg .panel { font-size: 15px; font-weight: 600; }
 svg .lab, svg .nodet { font-size: 14px; font-weight: 600; }
 svg .tick { font-size: 12.5px; fill: var(--muted); }
@@ -94,6 +163,12 @@ svg .curve { fill: none; stroke: var(--accent); stroke-width: 2.5; }
 svg .tail { fill: var(--accent-soft); stroke: none; }
 svg .sens { fill: var(--s1); } svg .tol { fill: var(--s2); }
 svg .barl { font-size: 13px; font-weight: 600; fill: #fff; }
+nav.toc li { text-align: left; }
+nav.toc.supp li::marker { content: "S" counter(list-item) "  "; }
+@media (max-width: 600px) {
+  main > p, .env p, .abstract p, main li, figcaption, .tcap { text-align: left; }
+  body { font-size: 16.5px; }
+}
 </style>
 <style>
 .crumb { font: .95rem system-ui, sans-serif; margin: 0 0 .4em; }
@@ -112,16 +187,22 @@ svg .lab { font-size: 15px; font-weight: 600; }
 </style>
 </head>
 <body>
-<header>
-  <p class="crumb"><a href="./">phenocal</a> › worked example</p>
-  <h1>The calculation, step by step</h1>
-  <p class="lede">A small example taken from allelic profiles all the way to calibrated
-  labels, with every number worked out by hand. The page is generated by a script that
-  repeats each calculation and checks it against the output of phenocal.</p>
+<header class="paper">
+  <p class="kicker">Supplementary material</p>
+  <h1>Worked example: the calibration computed by hand</h1>
+  <p class="affil-note">Supplement to <a href="./">Genome-anchored calibration of a phenotype
+  measured across laboratories</a>. Every number below is recomputed by the script that generates
+  this page and checked against the output of phenocal.</p>
+  <nav class="links">
+    <a href="./">Main text</a>
+    <a href="https://github.com/genpat-it/phenocal/blob/main/examples/worked_profiles.tsv">Profiles</a>
+    <a href="https://github.com/genpat-it/phenocal/blob/main/examples/worked_phenotypes.tsv">Phenotypes</a>
+    <a href="https://github.com/genpat-it/phenocal/blob/main/docs/src/build_worked.py">Generating script</a>
+  </nav>
 </header>
 <main>
 
-<nav class="toc" aria-label="Contents"><ol>
+<nav class="toc supp" aria-label="Contents"><span class="h">Contents</span><ol>
 <li><a href="#data">The data</a></li>
 <li><a href="#distances">From allelic profiles to distances</a></li>
 <li><a href="#pairs">Cross-cohort pairs and log-ratios</a></li>
@@ -132,29 +213,30 @@ svg .lab { font-size: 15px; font-weight: 600; }
 <li><a href="#run">Run it yourself</a></li>
 </ol></nav>
 
-<p>The <a href="./">main page</a> explains why the method works. This page shows how the
-numbers are obtained. The example is deliberately small, but it is built so that every step
-does something: the bound τ has to widen once for lack of pairs and once is stopped by
-biological drift, and the three laboratories do not agree perfectly, so the final fit is
-a compromise.</p>
+<p>The main text derives the method; this supplement follows one data set through every
+step of it, by hand. The example is deliberately small, but it is constructed so that each
+step has an effect: the bound τ must widen once for lack of pairs and is once stopped by
+biological drift, and the three laboratories do not agree perfectly, so that the
+least-squares solution is a genuine compromise between them. Equations of the main text are
+cited as Eq. (1)–(9); those of this supplement are numbered (S1), (S2), ….</p>
 
-<h2 id="data"><span class="n">1</span>The data</h2>
+<h2 id="data"><span class="n">S1</span>The data</h2>
 <p>Three laboratories (<code>labA</code>, <code>labB</code>, <code>labC</code>) measured a phenotype (an MIC, in
 mg/L) on 24 isolates of 12 strains. Each strain was measured by two of the laboratories.</p>
-<div class="tablewrap"><table class="narrow">
+<div class="tablewrap"><p class="tcap"><b>Table S1.</b> Values measured by each laboratory (mg/L); a dot means the strain was not measured there.</p><table class="narrow">
 <thead><tr><th>strain</th><th class="num">labA</th><th class="num">labB</th><th class="num">labC</th></tr></thead>
 <tbody><tr><td>S1</td><td class="num">1</td><td class="num">2</td><td class="num muted">·</td></tr><tr><td>S2</td><td class="num">0.5</td><td class="num">1</td><td class="num muted">·</td></tr><tr><td>S3</td><td class="num">2</td><td class="num">2</td><td class="num muted">·</td></tr><tr><td>S4</td><td class="num">1</td><td class="num muted">·</td><td class="num">4</td></tr><tr><td>S5</td><td class="num">0.5</td><td class="num muted">·</td><td class="num">2</td></tr><tr><td>S6</td><td class="num">2</td><td class="num muted">·</td><td class="num">2</td></tr><tr><td>S7</td><td class="num">1</td><td class="num muted">·</td><td class="num">1</td></tr><tr><td>S8</td><td class="num">1</td><td class="num muted">·</td><td class="num">4</td></tr><tr><td>S9</td><td class="num">0.5</td><td class="num muted">·</td><td class="num">4</td></tr><tr><td>S10</td><td class="num muted">·</td><td class="num">1</td><td class="num">4</td></tr><tr><td>S11</td><td class="num muted">·</td><td class="num">2</td><td class="num">8</td></tr><tr><td>S12</td><td class="num muted">·</td><td class="num">1</td><td class="num">2</td></tr></tbody></table></div>
 <p>The file <code>examples/worked_phenotypes.tsv</code> has one row per isolate,
 <code>S1_A&nbsp;&nbsp;1&nbsp;&nbsp;labA</code> and so on; the isolate name is the strain followed
 by the laboratory.</p>
-<p>The genomes are given as cgMLST allelic profiles, 12 loci per isolate, as chewBBACA writes
+<p>The genomes are given as cgMLST allelic profiles, 12 loci per isolate, as chewBBACA <span class="cite">[<a href="#ref-1">1</a>]</span> writes
 them (<code>examples/worked_profiles.tsv</code>). Each number is the id of the allele found
 at that locus. Highlighted: <span class="k inf">INF-</span> alleles (new alleles inferred by
 chewBBACA), <span class="k miss">missing calls</span> and <span class="k mut">alleles that differ from the
 rest of the strain</span>.</p>
-<div class="tablewrap"><table class="prof"><tr><th>sample</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th><th>11</th><th>12</th></tr><tr><td>S1_A</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="inf">INF-1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td></tr><tr><td>S1_B</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td></tr><tr><td>S2_A</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td></tr><tr><td>S2_B</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="mut">124</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="miss">LNF</td></tr><tr><td>S3_A</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td></tr><tr><td>S3_B</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="mut">139</td><td class="">3</td><td class="">3</td></tr><tr><td>S4_A</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td></tr><tr><td>S4_C</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td></tr><tr><td>S5_A</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td></tr><tr><td>S5_C</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td></tr><tr><td>S6_A</td><td class="">6</td><td class="mut">161</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td></tr><tr><td>S6_C</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="mut">167</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td></tr><tr><td>S7_A</td><td class="">7</td><td class="">7</td><td class="mut">172</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td></tr><tr><td>S7_C</td><td class="miss">ASM</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="mut">180</td><td class="">7</td></tr><tr><td>S8_A</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="mut">183</td><td class="">8</td><td class="mut">185</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td></tr><tr><td>S8_C</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="mut">191</td></tr><tr><td>S9_A</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td></tr><tr><td>S9_C</td><td class="mut">190</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="mut">196</td><td class="">9</td><td class="mut">198</td><td class="">9</td><td class="">9</td><td class="">9</td></tr><tr><td>S10_B</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td></tr><tr><td>S10_C</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td></tr><tr><td>S11_B</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td></tr><tr><td>S11_C</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="inf">INF-11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td></tr><tr><td>S12_B</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td></tr><tr><td>S12_C</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td></tr></table></div>
+<div class="tablewrap"><p class="tcap"><b>Table S2.</b> Allelic profiles, 12 loci (columns) per isolate.</p><table class="prof"><tr><th>sample</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th><th>11</th><th>12</th></tr><tr><td>S1_A</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="inf">INF-1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td></tr><tr><td>S1_B</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td><td class="">1</td></tr><tr><td>S2_A</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td></tr><tr><td>S2_B</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="mut">124</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="">2</td><td class="miss">LNF</td></tr><tr><td>S3_A</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td></tr><tr><td>S3_B</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="">3</td><td class="mut">139</td><td class="">3</td><td class="">3</td></tr><tr><td>S4_A</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td></tr><tr><td>S4_C</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td><td class="">4</td></tr><tr><td>S5_A</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td></tr><tr><td>S5_C</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td><td class="">5</td></tr><tr><td>S6_A</td><td class="">6</td><td class="mut">161</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td></tr><tr><td>S6_C</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="mut">167</td><td class="">6</td><td class="">6</td><td class="">6</td><td class="">6</td></tr><tr><td>S7_A</td><td class="">7</td><td class="">7</td><td class="mut">172</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td></tr><tr><td>S7_C</td><td class="miss">ASM</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="">7</td><td class="mut">180</td><td class="">7</td></tr><tr><td>S8_A</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="mut">183</td><td class="">8</td><td class="mut">185</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td></tr><tr><td>S8_C</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="">8</td><td class="mut">191</td></tr><tr><td>S9_A</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td></tr><tr><td>S9_C</td><td class="mut">190</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="">9</td><td class="mut">196</td><td class="">9</td><td class="mut">198</td><td class="">9</td><td class="">9</td><td class="">9</td></tr><tr><td>S10_B</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td></tr><tr><td>S10_C</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td><td class="">10</td></tr><tr><td>S11_B</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td></tr><tr><td>S11_C</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="inf">INF-11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td><td class="">11</td></tr><tr><td>S12_B</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td></tr><tr><td>S12_C</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td><td class="">12</td></tr></table></div>
 
-<h2 id="distances"><span class="n">2</span>From allelic profiles to distances</h2>
+<h2 id="distances"><span class="n">S2</span>From allelic profiles to distances</h2>
 <p>The distance between two isolates is the number of loci where <b>both</b> have a call
 and the two alleles differ. Each call is read as follows:</p>
 <ul>
@@ -165,25 +247,26 @@ or an empty cell are missing calls. A locus missing in either isolate is skipped
 missing call never counts as a difference.</li>
 </ul>
 <p>Isolates <code>S7_A</code> and <code>S7_C</code>, locus by locus:</p>
-<div class="tablewrap"><table class="narrow">
+<div class="tablewrap"><p class="tcap"><b>Table S3.</b> Isolates S7_A and S7_C compared locus by locus, Eq. (3).</p><table class="narrow">
 <thead><tr><th>locus</th><th>S7_A</th><th>S7_C</th><th></th></tr></thead>
 <tbody><tr class="miss"><td>1</td><td>7</td><td>ASM</td><td>not compared (missing)</td></tr><tr class=""><td>2</td><td>7</td><td>7</td><td>same</td></tr><tr class="mut"><td>3</td><td>172</td><td>7</td><td>different: +1</td></tr><tr class=""><td>4</td><td>7</td><td>7</td><td>same</td></tr><tr class=""><td>5</td><td>7</td><td>7</td><td>same</td></tr><tr class=""><td>6</td><td>7</td><td>7</td><td>same</td></tr><tr class=""><td>7</td><td>7</td><td>7</td><td>same</td></tr><tr class=""><td>8</td><td>7</td><td>7</td><td>same</td></tr><tr class=""><td>9</td><td>7</td><td>7</td><td>same</td></tr><tr class=""><td>10</td><td>7</td><td>7</td><td>same</td></tr><tr class="mut"><td>11</td><td>7</td><td>180</td><td>different: +1</td></tr><tr class=""><td>12</td><td>7</td><td>7</td><td>same</td></tr></tbody></table></div>
 <p>Eleven loci are compared and two differ, so \(d(\mathrm{S7\_A}, \mathrm{S7\_C}) = 2\).
 For <code>S1_A</code> and <code>S1_B</code> the only unusual call is <code>INF-1</code>, which is
 allele 1, so \(d = 0\): the two isolates have identical profiles. Isolates of different
 strains differ at every locus they share, so their distance is 11 or 12.</p>
-<p>This is the distance computed by chewBBACA, cgmlst-dists and ReporTree. phenocal
+<p>This is the distance of Eq. (3), computed in the same way by chewBBACA, cgmlst-dists
+<span class="cite">[<a href="#ref-2">2</a>]</span> and ReporTree <span class="cite">[<a href="#ref-3">3</a>]</span>. phenocal
 computes it only for the isolates that have a phenotype, and only between isolates of
 different laboratories, since those are the only pairs it uses.</p>
 
-<h2 id="pairs"><span class="n">3</span>Cross-cohort pairs and log-ratios</h2>
+<h2 id="pairs"><span class="n">S3</span>Cross-cohort pairs and log-ratios</h2>
 <p>Values are compared on the \(\log_{10}\) scale, where a constant factor between
 laboratories becomes a constant difference:</p>
-$$ y = \log_{10}(\text{value}), \qquad y_{ic} = \mu_i + \delta_c + \varepsilon_{ic}. $$
+$$ y = \log_{10}(\text{value}), \qquad y_{ic} = \mu_i + \delta_c + \varepsilon_{ic}. \tag{1} $$
 <p>\(\mu_i\) is the true value of strain \(i\), \(\delta_c\) the offset of laboratory \(c\)
 (what we want), \(\varepsilon\) the measurement noise. For a pair of isolates from
 laboratories \(a\) and \(b\) the <b>log-ratio</b> is</p>
-$$ s = y_a - y_b = \log_{10}\frac{\text{value}_a}{\text{value}_b}. $$
+$$ s = y_a - y_b = \log_{10}\frac{\text{value}_a}{\text{value}_b}. \tag{2} $$
 <p>If the two isolates are the same strain, \(\mu\) cancels and \(s\) measures
 \(\delta_a - \delta_b\) plus noise. For example <code>S1_A</code> = 1 and <code>S1_B</code> = 2:
 \(s = \log_{10}(1/2) = -0.301\), so on this strain <code>labB</code> reads twice as high
@@ -193,7 +276,7 @@ as <code>labA</code>.</p>
 laboratories they connect. Pairs within one laboratory say nothing about the offsets and
 are not used.</p>
 
-<h2 id="edges"><span class="n">4</span>One edge per pair of laboratories: τ, Δ, SE</h2>
+<h2 id="edges"><span class="n">S4</span>One edge per pair of laboratories: τ, Δ, SE</h2>
 <p>For each pair of laboratories phenocal decides which pairs to trust, summarises them in a
 single value \(\Delta\), and attaches a standard error. Three quantities are fixed by the
 options of the run (here the defaults, with <code>--min-support 3</code>):</p>
@@ -209,12 +292,12 @@ adds (<code>--lambda</code>);</li>
 over the closest pairs (distance \(d_{\min}\)). Try the distinct distances in increasing
 order; τ is the first one for which</p>
 $$ n(\tau) = \#\{d \le \tau\} \ge 3 \qquad\text{and}\qquad
-\frac{|\operatorname{median}\{s : d \le \tau\} - m_0|}{\bar\sigma} \le \kappa. $$
+\frac{|\operatorname{median}\{s : d \le \tau\} - m_0|}{\bar\sigma} \le \kappa. \tag{4} $$
 <p>The first condition asks for enough pairs; the second stops τ when more distant pairs
 start to pull the median away, the signature of biology rather than protocol. The edge value
 and its uncertainty are then</p>
 $$ \Delta = \operatorname{median}\{s : d \le \tau\}, \qquad
-\mathrm{SE} = \sqrt{\frac{\sigma_a^2 + \sigma_b^2 + \lambda\,\tau}{n}}, \qquad w = \frac{1}{\mathrm{SE}^2}. $$
+\mathrm{SE} = \sqrt{\frac{\sigma_a^2 + \sigma_b^2 + \lambda\,\tau}{n}}, \qquad w = \frac{1}{\mathrm{SE}^2}. \tag{5, 6} $$
 <p>A median of an even number of values is the mean of the two middle ones.</p>
 
 
@@ -223,11 +306,11 @@ $$ \Delta = \operatorname{median}\{s : d \le \tau\}, \qquad
 allele. At τ = 0 there is a single pair, fewer than 3, so τ widens to 1. The median
 does not move, so τ = 1 is accepted. Note that S3 reads the same in both laboratories:
 one noisy pair does not move a median of three.</p>
-<div class="tablewrap"><table>
+<div class="tablewrap"><p class="tcap"><b>Table S4.</b> Cross-cohort pairs of labA and labB up to distance 3, with their log-ratio s; highlighted rows enter the median.</p><table>
 <thead><tr><th>isolate in labA</th><th>isolate in labB</th><th class="num">d</th><th class="num">value labA</th><th class="num">value labB</th><th class="num">s</th><th>used</th></tr></thead>
 <tbody><tr class="used"><td>S1_A</td><td>S1_B</td><td class="num">0</td><td class="num">1</td><td class="num">2</td><td class="num">−0.301</td><td>yes</td></tr><tr class="used"><td>S2_A</td><td>S2_B</td><td class="num">1</td><td class="num">0.5</td><td class="num">1</td><td class="num">−0.301</td><td>yes</td></tr><tr class="used"><td>S3_A</td><td>S3_B</td><td class="num">1</td><td class="num">2</td><td class="num">2</td><td class="num">0.000</td><td>yes</td></tr></tbody></table></div>
 <p class="small">The other 51 pairs of these two laboratories are different strains, at distance 11 or more.</p>
-<div class="tablewrap"><table>
+<div class="tablewrap"><p class="tcap"><b>Table S5.</b> Candidate bounds τ for labA–labB, Eq. (4): the first row satisfying both conditions is chosen.</p><table>
 <thead><tr><th class="num">τ</th><th class="num">pairs with d ≤ τ</th><th class="num">median of s</th><th class="num">drift / σ̄</th><th>≥ 3 pairs</th><th>drift ≤ κ</th><th></th></tr></thead>
 <tbody><tr class=""><td class="num">0</td><td class="num">1</td><td class="num">−0.301</td><td class="num">0.00</td><td>no</td><td>yes</td><td>too few pairs</td></tr><tr class="used"><td class="num">1</td><td class="num">3</td><td class="num">−0.301</td><td class="num">0.00</td><td>yes</td><td>yes</td><td>chosen</td></tr></tbody></table></div>
 $$ \begin{aligned} \Delta_{\mathrm{AB}} &= \operatorname{median}\{-0.301, -0.301, 0.000\} = -0.301 \end{aligned} $$
@@ -245,11 +328,11 @@ come S6 and S7, which read the <i>same</i> in both laboratories: they are not qu
 strain, and their biology differs. With them the median moves by a whole dilution (0.301), 1.41 times
 σ̄, more than κ = 1 allows, so τ = 2 is rejected. At τ = 3 two more pairs bring the median back, and τ = 3
 is accepted with six pairs.</p>
-<div class="tablewrap"><table>
+<div class="tablewrap"><p class="tcap"><b>Table S6.</b> Cross-cohort pairs of labA and labC up to distance 3, with their log-ratio s; highlighted rows enter the median.</p><table>
 <thead><tr><th>isolate in labA</th><th>isolate in labC</th><th class="num">d</th><th class="num">value labA</th><th class="num">value labC</th><th class="num">s</th><th>used</th></tr></thead>
 <tbody><tr class="used"><td>S4_A</td><td>S4_C</td><td class="num">0</td><td class="num">1</td><td class="num">4</td><td class="num">−0.602</td><td>yes</td></tr><tr class="used"><td>S5_A</td><td>S5_C</td><td class="num">0</td><td class="num">0.5</td><td class="num">2</td><td class="num">−0.602</td><td>yes</td></tr><tr class="used"><td>S6_A</td><td>S6_C</td><td class="num">2</td><td class="num">2</td><td class="num">2</td><td class="num">0.000</td><td>yes</td></tr><tr class="used"><td>S7_A</td><td>S7_C</td><td class="num">2</td><td class="num">1</td><td class="num">1</td><td class="num">0.000</td><td>yes</td></tr><tr class="used"><td>S8_A</td><td>S8_C</td><td class="num">3</td><td class="num">1</td><td class="num">4</td><td class="num">−0.602</td><td>yes</td></tr><tr class="used"><td>S9_A</td><td>S9_C</td><td class="num">3</td><td class="num">0.5</td><td class="num">4</td><td class="num">−0.903</td><td>yes</td></tr></tbody></table></div>
 <p class="small">The other 75 pairs of these two laboratories are different strains, at distance 11 or more.</p>
-<div class="tablewrap"><table>
+<div class="tablewrap"><p class="tcap"><b>Table S7.</b> Candidate bounds τ for labA–labC, Eq. (4): the first row satisfying both conditions is chosen.</p><table>
 <thead><tr><th class="num">τ</th><th class="num">pairs with d ≤ τ</th><th class="num">median of s</th><th class="num">drift / σ̄</th><th>≥ 3 pairs</th><th>drift ≤ κ</th><th></th></tr></thead>
 <tbody><tr class=""><td class="num">0</td><td class="num">2</td><td class="num">−0.602</td><td class="num">0.00</td><td>no</td><td>yes</td><td>too few pairs</td></tr><tr class=""><td class="num">2</td><td class="num">4</td><td class="num">−0.301</td><td class="num">1.41</td><td>yes</td><td>no</td><td>median drifts</td></tr><tr class="used"><td class="num">3</td><td class="num">6</td><td class="num">−0.602</td><td class="num">0.00</td><td>yes</td><td>yes</td><td>chosen</td></tr></tbody></table></div>
 $$ \begin{aligned} \Delta_{\mathrm{AC}} &= \operatorname{median}\{-0.903, -0.602, -0.602, -0.602, 0.000, 0.000\} \\ &= \frac{(-0.602) + (-0.602)}{2} = -0.602 \end{aligned} $$
@@ -260,7 +343,7 @@ $$ w = \frac{1}{\mathrm{SE}^2} = 16.55. $$
 
 
 <figure><svg viewBox="0 0 700 320" role="img" aria-labelledby="ft"><title id="ft">Log-ratios of the labA–labC pairs against genomic distance, with the candidate bounds τ</title><rect class="usedzone" x="111.8" y="40" width="459.0" height="210"/><line class="track" x1="110" x2="660" y1="67.4" y2="67.4"/><text class="tick" x="100" y="71.4" text-anchor="end">0.000</text><line class="track" x1="110" x2="660" y1="122.4" y2="122.4"/><text class="tick" x="100" y="126.4" text-anchor="end">−0.301</text><line class="track" x1="110" x2="660" y1="177.3" y2="177.3"/><text class="tick" x="100" y="181.3" text-anchor="end">−0.602</text><line class="track" x1="110" x2="660" y1="232.3" y2="232.3"/><text class="tick" x="100" y="236.3" text-anchor="end">−0.903</text><line class="axis" x1="110" x2="660" y1="250" y2="250"/><text class="tick" x="150.0" y="268" text-anchor="middle">0</text><text class="tick" x="277.5" y="268" text-anchor="middle">1</text><text class="tick" x="405.0" y="268" text-anchor="middle">2</text><text class="tick" x="532.5" y="268" text-anchor="middle">3</text><text class="tick" x="660.0" y="268" text-anchor="middle">4</text><text class="note" x="405" y="290" text-anchor="middle">genomic distance d (alleles)</text><text class="note" x="18" y="145" transform="rotate(-90 18 145)" text-anchor="middle">log-ratio s</text><circle class="pt used" cx="143.0" cy="177.3" r="6"/><circle class="pt used" cx="157.0" cy="177.3" r="6"/><circle class="pt used" cx="398.0" cy="67.4" r="6"/><circle class="pt used" cx="412.0" cy="67.4" r="6"/><circle class="pt used" cx="532.5" cy="177.3" r="6"/><circle class="pt used" cx="532.5" cy="232.3" r="6"/><line class="tau" x1="124.0" x2="176.0" y1="177.3" y2="177.3"/><text class="note" x="150.0" y="26" text-anchor="middle">τ = 0: n < 3</text><line class="tau" x1="379.0" x2="431.0" y1="122.4" y2="122.4"/><text class="note" x="405.0" y="26" text-anchor="middle">τ = 2: drifts</text><line class="med" x1="506.5" x2="558.5" y1="177.3" y2="177.3"/><text class="note" x="532.5" y="26" text-anchor="middle">τ = 3: chosen</text></svg>
-<figcaption>The labA–labC pairs up to distance 4. Dashes mark the median of the pairs with
+<figcaption><b>Figure S1.</b> The labA–labC pairs up to distance 4. Dashes mark the median of the pairs with
 d ≤ τ for each candidate τ; τ = 2 is rejected because its median (−0.301) drifts from the
 median of the identical pairs (−0.602). The shaded band holds the pairs used.</figcaption></figure>
 
@@ -270,11 +353,11 @@ median of the identical pairs (−0.602). The shaded band holds the pairs used.<
 say that labC reads four times higher than labB, one says twice as high; the median is
 \(\log_{10}(1/4)\). With τ = 0 and three pairs this is the most precise edge, with
 twice the weight of the others.</p>
-<div class="tablewrap"><table>
+<div class="tablewrap"><p class="tcap"><b>Table S8.</b> Cross-cohort pairs of labB and labC up to distance 3, with their log-ratio s; highlighted rows enter the median.</p><table>
 <thead><tr><th>isolate in labB</th><th>isolate in labC</th><th class="num">d</th><th class="num">value labB</th><th class="num">value labC</th><th class="num">s</th><th>used</th></tr></thead>
 <tbody><tr class="used"><td>S10_B</td><td>S10_C</td><td class="num">0</td><td class="num">1</td><td class="num">4</td><td class="num">−0.602</td><td>yes</td></tr><tr class="used"><td>S11_B</td><td>S11_C</td><td class="num">0</td><td class="num">2</td><td class="num">8</td><td class="num">−0.602</td><td>yes</td></tr><tr class="used"><td>S12_B</td><td>S12_C</td><td class="num">0</td><td class="num">1</td><td class="num">2</td><td class="num">−0.301</td><td>yes</td></tr></tbody></table></div>
 <p class="small">The other 51 pairs of these two laboratories are different strains, at distance 10 or more.</p>
-<div class="tablewrap"><table>
+<div class="tablewrap"><p class="tcap"><b>Table S9.</b> Candidate bounds τ for labB–labC, Eq. (4): the first row satisfying both conditions is chosen.</p><table>
 <thead><tr><th class="num">τ</th><th class="num">pairs with d ≤ τ</th><th class="num">median of s</th><th class="num">drift / σ̄</th><th>≥ 3 pairs</th><th>drift ≤ κ</th><th></th></tr></thead>
 <tbody><tr class="used"><td class="num">0</td><td class="num">3</td><td class="num">−0.602</td><td class="num">0.00</td><td>yes</td><td>yes</td><td>chosen</td></tr></tbody></table></div>
 $$ \begin{aligned} \Delta_{\mathrm{BC}} &= \operatorname{median}\{-0.602, -0.602, -0.301\} = -0.602 \end{aligned} $$
@@ -284,9 +367,9 @@ $$ \mathrm{SE} = \sqrt{\frac{0.04531 + 0.04531 + 0.09062\times 0}{3}}
 $$ w = \frac{1}{\mathrm{SE}^2} = 33.11. $$
 
 
-<h2 id="wls"><span class="n">5</span>Putting the edges together: weighted least squares</h2>
+<h2 id="wls"><span class="n">S5</span>Putting the edges together: weighted least squares</h2>
 <figure><svg viewBox="0 0 700 330" role="img" aria-labelledby="fg"><title id="fg">The comparison graph with the three edge values and weights</title><line class="edge" x1="120" y1="250" x2="350" y2="60" stroke-width="3.1"/><text class="note" x="190" y="135" text-anchor="end">Δ = −0.301 (0.50×)</text><text class="tick" x="190" y="153" text-anchor="end">τ = 1, n = 3, w = 16.6</text><line class="edge" x1="120" y1="250" x2="580" y2="250" stroke-width="3.1"/><text class="note" x="350" y="292" text-anchor="middle">Δ = −0.602 (0.25×)</text><text class="tick" x="350" y="310" text-anchor="middle">τ = 3, n = 6, w = 16.6</text><line class="edge" x1="350" y1="60" x2="580" y2="250" stroke-width="5.1"/><text class="note" x="510" y="135" text-anchor="start">Δ = −0.602 (0.25×)</text><text class="tick" x="510" y="153" text-anchor="start">τ = 0, n = 3, w = 33.1</text><circle class="node nA" cx="120" cy="250" r="38"/><text class="lab" x="120" y="255" text-anchor="middle">labA</text><circle class="node nB" cx="350" cy="60" r="38"/><text class="lab" x="350" y="65" text-anchor="middle">labB</text><circle class="node nC" cx="580" cy="250" r="38"/><text class="lab" x="580" y="255" text-anchor="middle">labC</text></svg>
-<figcaption>The comparison graph: one node per laboratory, one edge per pair of laboratories
+<figcaption><b>Figure S2.</b> The comparison graph: one node per laboratory, one edge per pair of laboratories
 that share strains. Line width is proportional to the weight w.</figcaption></figure>
 <p>Each edge is an equation in the offsets, \(\delta_a - \delta_b \approx \Delta_{ab}\). Fixing the
 anchor \(\delta_A = 0\) (any laboratory can be the anchor; it only sets the reference scale):</p>
@@ -297,12 +380,12 @@ $$ \begin{aligned}
 \end{aligned} $$
 <p>Three equations, two unknowns, and they disagree: going round the triangle, the edge values
 should add up to zero, but</p>
-$$ \Delta_{AB} + \Delta_{BC} - \Delta_{AC} = -0.301 + (-0.602) - (-0.602) = -0.301. $$
+$$ \Delta_{AB} + \Delta_{BC} - \Delta_{AC} = -0.301 + (-0.602) - (-0.602) = -0.301. \tag{S1} $$
 <p>The labA–labB edge says labB reads twice as high as labA; the other two together say it
 reads the same. Weighted least squares finds the offsets that minimise the weighted sum of
 squared disagreements:</p>
 $$ S(\delta_B, \delta_C) = w_{AB}\big(\Delta_{AB} + \delta_B\big)^2 + w_{AC}\big(\Delta_{AC} + \delta_C\big)^2
-+ w_{BC}\big(\Delta_{BC} - \delta_B + \delta_C\big)^2. $$
++ w_{BC}\big(\Delta_{BC} - \delta_B + \delta_C\big)^2. \tag{S2} $$
 <p>Setting both derivatives to zero gives the normal equations
 \((A^{\top} W A)\,\delta = A^{\top} W \Delta\):</p>
 $$ \begin{bmatrix} w_{AB} + w_{BC} & -w_{BC} \\ -w_{BC} & w_{AC} + w_{BC} \end{bmatrix}
@@ -310,7 +393,7 @@ $$ \begin{bmatrix} w_{AB} + w_{BC} & -w_{BC} \\ -w_{BC} & w_{AC} + w_{BC} \end{b
 \begin{bmatrix} -w_{AB}\Delta_{AB} + w_{BC}\Delta_{BC} \\ -w_{AC}\Delta_{AC} - w_{BC}\Delta_{BC} \end{bmatrix} $$
 $$ \begin{bmatrix} 49.66 & -33.11 \\ -33.11 & 49.66 \end{bmatrix}
 \begin{bmatrix} \delta_B \\ \delta_C \end{bmatrix} =
-\begin{bmatrix} -14.949 \\ 29.897 \end{bmatrix}. $$
+\begin{bmatrix} -14.949 \\ 29.897 \end{bmatrix}. \tag{S3} $$
 <p>The matrix on the left is the weighted graph Laplacian with the anchor removed. Its
 determinant is \(49.66^2 - 33.11^2 = 1370.0\), and inverting it,</p>
 $$ (A^{\top} W A)^{-1} = \begin{bmatrix} 0.03625 & 0.02417 \\ 0.02417 & 0.03625 \end{bmatrix},
@@ -322,21 +405,21 @@ labC \(10^{0.7225} = 5.28\times\) higher than labA. (Exactly,
 the 2× of its direct edge and the 1× implied by the other two, closer to the latter
 because the labB–labC edge weighs twice as much.</p>
 <p>What is left over on each edge:</p>
-<div class="tablewrap"><table class="narrow">
+<div class="tablewrap"><p class="tcap"><b>Table S10.</b> Edge values, fitted contrasts and residuals of the least-squares solution.</p><table class="narrow">
 <thead><tr><th>edge</th><th class="num">Δ</th><th class="num">fitted \(\hat\delta_a - \hat\delta_b\)</th><th class="num">residual</th><th class="num">w</th></tr></thead>
 <tbody><tr><td>labA–labB</td><td class="num">−0.301</td><td class="num">−0.181</td><td class="num">−0.120</td><td class="num">16.55</td></tr><tr><td>labA–labC</td><td class="num">−0.602</td><td class="num">−0.722</td><td class="num">0.120</td><td class="num">16.55</td></tr><tr><td>labB–labC</td><td class="num">−0.602</td><td class="num">−0.542</td><td class="num">−0.060</td><td class="num">33.11</td></tr></tbody></table></div>
 $$ \text{weighted RMSE} = \sqrt{\frac{\sum w\,r^2}{\sum w}} = 0.0952\ \log_{10}
-= 0.32\ \text{dilutions}. $$
+= 0.32\ \text{dilutions}. \tag{S4} $$
 <p>A residual of a third of a dilution is large for real data; here it was put in on purpose.
 phenocal writes it at the end of every run, as a check on how well the laboratories agree.</p>
 
-<h2 id="uncertainty"><span class="n">6</span>Uncertainty</h2>
-<p>The edge values are uncertain, with standard errors SE. phenocal propagates this by
-bootstrap: it draws every edge from \(\mathcal N(\Delta, \mathrm{SE}^2)\), solves the least squares
+<h2 id="uncertainty"><span class="n">S6</span>Uncertainty</h2>
+<p>The edge values are uncertain, with standard errors SE. phenocal propagates this by a
+parametric bootstrap <span class="cite">[<a href="#ref-4">4</a>]</span>: it draws every edge from \(\mathcal N(\Delta, \mathrm{SE}^2)\), solves the least squares
 again, repeats this 10,000 times, and reports the median of the offsets and their
 2.5th–97.5th percentiles.</p>
 <p>Because the solution is a linear function of the edge values with weights
-\(1/\mathrm{SE}^2\), the same answer can be written down exactly: the offsets are normal,
+\(1/\mathrm{SE}^2\), the same answer can be written down exactly (Proposition 2 of the main text): the offsets are normal,
 with covariance \((A^{\top} W A)^{-1}\), the matrix inverted above. So</p>
 $$ \mathrm{sd}(\hat\delta_B) = \sqrt{0.03625} = 0.1904, \qquad
 \mathrm{sd}(\hat\delta_C) = \sqrt{0.03625} = 0.1904, $$
@@ -344,7 +427,7 @@ $$ 95\%:\ \hat\delta \pm 1.96\,\mathrm{sd} \;\Rightarrow\;
 \text{labB}: [0.64,\ 3.58], \quad
 \text{labC}: [2.24,\ 12.46]. $$
 <p>phenocal's bootstrap gives:</p>
-<div class="tablewrap"><table class="narrow">
+<div class="tablewrap"><p class="tcap"><b>Table S11.</b> Offsets reported by phenocal (<code>offsets.tsv</code>): bootstrap median and 95% interval, 10,000 draws.</p><table class="narrow">
 <thead><tr><th>cohort</th><th class="num">offset (log10)</th><th class="num">fold</th><th class="num">95% interval</th></tr></thead>
 <tbody><tr><td>labA</td><td class="num">0.0000</td><td class="num">1.00×</td><td class="num">[1.00, 1.00]</td></tr><tr><td>labB</td><td class="num">0.1764</td><td class="num">1.50×</td><td class="num">[0.64, 3.56]</td></tr><tr><td>labC</td><td class="num">0.7230</td><td class="num">5.28×</td><td class="num">[2.22, 12.07]</td></tr></tbody></table></div>
 <p>The differences from the exact values are Monte Carlo error: 10,000 random draws
@@ -358,7 +441,7 @@ three to six pairs; with real collections, edges have tens or hundreds of pairs.
 robust bootstrap with Student-\(t\) draws (<code>--robust</code>) and one that resamples clonal
 clusters (<code>--clusters</code>), which have no closed form.</p>
 
-<h2 id="harmonise"><span class="n">7</span>Harmonised values and probabilistic labels</h2>
+<h2 id="harmonise"><span class="n">S7</span>Harmonised values and probabilistic labels</h2>
 <p>Each value is brought to the scale of the anchor by removing its laboratory's offset,
 using the reported offsets:</p>
 $$ \text{harmonised} = \frac{\text{value}}{10^{\hat\delta_c}}, \qquad\text{e.g. }
@@ -378,11 +461,11 @@ probabilistic labels: they separate isolates whose class is clear from those who
 depends on the calibration.</p>
 <p>All isolates (<code>labels.tsv</code>; isolates of the anchor have a certain offset, so their
 probabilities are 0 or 1):</p>
-<div class="tablewrap"><table>
+<div class="tablewrap"><p class="tcap"><b>Table S12.</b> Harmonised values and probabilities P(harmonised ≥ t), Eq. (9), for the default thresholds (<code>labels.tsv</code>).</p><table>
 <thead><tr><th>isolate</th><th>cohort</th><th class="num">raw</th><th class="num">harmonised</th><th class="num">P(≥ 0.75)</th><th class="num">P(≥ 1)</th><th class="num">P(≥ 1.25)</th><th class="num">P(≥ 1.5)</th><th class="num">P(≥ 2)</th></tr></thead>
 <tbody><tr><td>S1_A</td><td>labA</td><td class="num">1</td><td class="num">1.000</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>S2_A</td><td>labA</td><td class="num">0.5</td><td class="num">0.500</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>S3_A</td><td>labA</td><td class="num">2</td><td class="num">2.000</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">1.00</td></tr><tr><td>S4_A</td><td>labA</td><td class="num">1</td><td class="num">1.000</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>S5_A</td><td>labA</td><td class="num">0.5</td><td class="num">0.500</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>S6_A</td><td>labA</td><td class="num">2</td><td class="num">2.000</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">1.00</td></tr><tr><td>S7_A</td><td>labA</td><td class="num">1</td><td class="num">1.000</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>S8_A</td><td>labA</td><td class="num">1</td><td class="num">1.000</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>S9_A</td><td>labA</td><td class="num">0.5</td><td class="num">0.500</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>S1_B</td><td>labB</td><td class="num">2</td><td class="num">1.332</td><td class="num">0.91</td><td class="num">0.75</td><td class="num">0.56</td><td class="num">0.40</td><td class="num">0.18</td></tr><tr><td>S2_B</td><td>labB</td><td class="num">1</td><td class="num">0.666</td><td class="num">0.40</td><td class="num">0.18</td><td class="num">0.08</td><td class="num">0.03</td><td class="num">0.01</td></tr><tr><td>S3_B</td><td>labB</td><td class="num">2</td><td class="num">1.332</td><td class="num">0.90</td><td class="num">0.75</td><td class="num">0.56</td><td class="num">0.39</td><td class="num">0.18</td></tr><tr><td>S10_B</td><td>labB</td><td class="num">1</td><td class="num">0.666</td><td class="num">0.40</td><td class="num">0.18</td><td class="num">0.08</td><td class="num">0.03</td><td class="num">0.01</td></tr><tr><td>S11_B</td><td>labB</td><td class="num">2</td><td class="num">1.332</td><td class="num">0.91</td><td class="num">0.75</td><td class="num">0.56</td><td class="num">0.40</td><td class="num">0.17</td></tr><tr><td>S12_B</td><td>labB</td><td class="num">1</td><td class="num">0.666</td><td class="num">0.40</td><td class="num">0.18</td><td class="num">0.07</td><td class="num">0.03</td><td class="num">0.01</td></tr><tr><td>S4_C</td><td>labC</td><td class="num">4</td><td class="num">0.757</td><td class="num">0.51</td><td class="num">0.26</td><td class="num">0.12</td><td class="num">0.06</td><td class="num">0.01</td></tr><tr><td>S5_C</td><td>labC</td><td class="num">2</td><td class="num">0.379</td><td class="num">0.06</td><td class="num">0.01</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>S6_C</td><td>labC</td><td class="num">2</td><td class="num">0.379</td><td class="num">0.06</td><td class="num">0.01</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>S7_C</td><td>labC</td><td class="num">1</td><td class="num">0.189</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>S8_C</td><td>labC</td><td class="num">4</td><td class="num">0.757</td><td class="num">0.50</td><td class="num">0.26</td><td class="num">0.12</td><td class="num">0.06</td><td class="num">0.01</td></tr><tr><td>S9_C</td><td>labC</td><td class="num">4</td><td class="num">0.757</td><td class="num">0.52</td><td class="num">0.26</td><td class="num">0.12</td><td class="num">0.06</td><td class="num">0.01</td></tr><tr><td>S10_C</td><td>labC</td><td class="num">4</td><td class="num">0.757</td><td class="num">0.51</td><td class="num">0.26</td><td class="num">0.13</td><td class="num">0.06</td><td class="num">0.01</td></tr><tr><td>S11_C</td><td>labC</td><td class="num">8</td><td class="num">1.514</td><td class="num">0.95</td><td class="num">0.83</td><td class="num">0.67</td><td class="num">0.51</td><td class="num">0.26</td></tr><tr><td>S12_C</td><td>labC</td><td class="num">2</td><td class="num">0.379</td><td class="num">0.06</td><td class="num">0.01</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td></tr></tbody></table></div>
 
-<h2 id="run"><span class="n">8</span>Run it yourself</h2>
+<h2 id="run"><span class="n">S8</span>Run it yourself</h2>
 <p>The two files are in the repository and in the Docker image:</p>
 <pre><code>phenocal --phenotypes examples/worked_phenotypes.tsv \
          --profiles examples/worked_profiles.tsv \
@@ -390,11 +473,14 @@ probabilities are 0 or 1):</p>
          --trace worked.md --dashboard worked.html</code></pre>
 <p><code>worked.md</code> repeats these calculations for your own data, with the real numbers of
 the run; <code>worked.html</code> shows them interactively.</p>
+<h2 id="refs">References</h2>
+<ol class="refs"><li id="ref-1">Silva M, Machado MP, Silva DN, Rossi M, Moran-Gilad J, Santos S, Ramirez M, Carriço JA. chewBBACA: a complete suite for gene-by-gene schema creation and strain identification. <i>Microbial Genomics</i>. 2018;4(3):e000166. <a href="https://doi.org/10.1099/mgen.0.000166">doi:10.1099/mgen.0.000166</a>.</li><li id="ref-2">Seemann T. cgmlst-dists: calculate distance matrix from cgMLST allele call tables. Software. <a href="https://github.com/tseemann/cgmlst-dists">github.com/tseemann/cgmlst-dists</a>.</li><li id="ref-3">Mixão V, Pinto M, Sobral D, Di Pasquale A, Gomes J, Borges V. ReporTree: a surveillance-oriented tool to strengthen the linkage between pathogen genetic clusters and epidemiological data. <i>Genome Medicine</i>. 2023;15(1):43. <a href="https://doi.org/10.1186/s13073-023-01196-1">doi:10.1186/s13073-023-01196-1</a>.</li><li id="ref-4">Efron B. Bootstrap methods: another look at the jackknife. <i>The Annals of Statistics</i>. 1979;7(1):1–26. <a href="https://doi.org/10.1214/aos/1176344552">doi:10.1214/aos/1176344552</a>.</li></ol>
 </main>
 <footer>
 phenocal is free software under the MIT licence, developed at the Istituto Zooprofilattico
-Sperimentale dell'Abruzzo e del Molise "G. Caporale" (IZSAM).
-<a href="https://github.com/genpat-it/phenocal">github.com/genpat-it/phenocal</a>
+Sperimentale dell'Abruzzo e del Molise “G. Caporale” (IZSAM) and the Gran Sasso Science
+Institute (GSSI). <a href="https://github.com/genpat-it/phenocal">github.com/genpat-it/phenocal</a>
 </footer>
+
 </body>
 </html>

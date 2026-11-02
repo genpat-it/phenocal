@@ -7,6 +7,7 @@ example (examples/toy_*.tsv) and the toy run outputs, so every number drawn
 is a real one.
 """
 import math
+import re
 import sys
 
 OUT = sys.argv[1]
@@ -195,7 +196,7 @@ def fig_label():
             o.append(f'<line class="axis" x1="{X(L(t)):.1f}" x2="{X(L(t)):.1f}" y1="{yb}" y2="{yb + 5}"/>')
             o.append(f'<text class="tick" x="{X(L(t)):.1f}" y="{yb + 19}" text-anchor="middle">{t:g}</text>')
     o.append(f'<line class="tau" x1="{X(thr):.1f}" x2="{X(thr):.1f}" y1="30" y2="{yb}"/>')
-    o.append(f'<text class="note" x="{X(thr) + 6:.1f}" y="44">threshold c = 1.25</text>')
+    o.append(f'<text class="note" x="{X(thr) + 6:.1f}" y="44">threshold t = 1.25</text>')
     o.append(f'<text class="big" x="{X(L(1.9)):.1f}" y="{yb - 95}">P = {p:.2f}</text>')
     o.append(f'<text class="tick" x="{X(mu) - 30:.1f}" y="{yb - ht + 8}" text-anchor="end">s2_B harmonised: 1.007</text>')
     o.append(f'<text class="tick" x="{(x0 + x1) / 2}" y="{yb + 40}" text-anchor="middle">harmonised value of s2_B over the uncertainty of the labB offset (log scale)</text>')
@@ -257,8 +258,12 @@ rows_data = "".join(
     f"<tr><td>{s}</td><td>{c}</td><td class=\"num\">{v:g}</td><td class=\"num\">{harm[s]:.3f}</td></tr>"
     for s, (v, c, _) in toy.items())
 
-html = open(sys.argv[2]).read()
-html = (html.replace("@@FIG1@@", fig_problem())
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import common  # noqa: E402
+
+body = open(sys.argv[2]).read()
+body = (body.replace("@@FIG1@@", fig_problem())
             .replace("@@FIG2@@", fig_idea())
             .replace("@@FIG3@@", fig_tau())
             .replace("@@FIG4@@", fig_graph())
@@ -267,6 +272,18 @@ html = (html.replace("@@FIG1@@", fig_problem())
             .replace("@@MLFLOW@@", esc(MLFLOW))
             .replace("@@FLOW@@", esc(FLOW))
             .replace("@@ROWS@@", rows_data)
-            .replace("@@PS2B@@", f"{p_s2b:.2f}"))
+            .replace("@@PS2B@@", f"{p_s2b:.2f}")
+            .replace("@@AUTHORS@@", common.authors_html())
+            .replace("@@BIBTEX@@", esc(common.BIBTEX))
+            .replace("@@FOOTER@@", common.FOOTER))
+body, order = common.cite(body)
+body = body.replace("@@REFS@@", common.references(order))
+left = re.findall(r"@@[A-Z0-9_:]+@@", body)
+if left:
+    sys.exit(f"unreplaced placeholders: {left}")
+html = common.head("Genome-anchored calibration of a phenotype measured across laboratories — phenocal",
+                   "phenocal calibrates a phenotype measured by different laboratories, using genetically "
+                   "identical isolates as natural controls: model, estimator, uncertainty and use in "
+                   "supervised learning.") + body
 open(OUT, "w").write(html)
 print("wrote", OUT, "P(s2_B >= 1.25) =", round(p_s2b, 4))
