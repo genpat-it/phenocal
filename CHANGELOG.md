@@ -3,6 +3,46 @@
 All notable changes to phenocal. Every release gives byte-identical results
 to the previous one on the same input unless stated otherwise.
 
+## [0.1.3] - 2026-11-02
+
+Allelic profiles as input: phenocal computes the distances itself.
+
+### Added
+- **`--profiles <FILE>`**: the cgMLST or wgMLST allele-call table (one row per
+  sample, one column per locus), e.g. chewBBACA `results_alleles.tsv`, can be
+  given directly instead of precomputed distances. It is an alternative to
+  `--pairs`: give one or the other.
+  - The distance between two samples is the number of loci called in both
+    whose alleles differ, the allelic distance of chewBBACA, cgmlst-dists and
+    ReporTree; missing calls never count as differences.
+  - The chewBBACA `INF-` prefix is removed; `0`, empty, `-`, `?`, `N`, `NA`
+    and the chewBBACA classes (`LNF`, `PLOT3`, `PLOT5`, `LOTSC`, `NIPH`,
+    `NIPHEM`, `ALM`, `ASM`, `PAMA`, `EXC`, `INV`) are missing.
+  - Integer alleles are compared by value at any size, so the 32-bit CRC
+    hashes of chewBBACA hashed profiles are read correctly; other text
+    (sequence hashes, `*7` novel alleles) is compared as text.
+  - Row names are matched to the phenotype ids as for distance matrices.
+  - Only samples with a phenotype and only cross-cohort pairs are computed,
+    on all cores; `--threads <N>` sets the number of threads.
+- `examples/toy_profiles.tsv`: the toy as allelic profiles, with `INF-`,
+  missing classes and a novel allele; a test checks it gives exactly the
+  outputs of the distance matrix and of the pair table.
+
+### Changed
+- README, `--help` and the GitHub Pages site present the allelic profiles as
+  the usual input and precomputed distances (`--pairs`) as the alternative.
+  The previous wording, which led with distance matrices, suggested that
+  distances had to be computed before running phenocal.
+
+### Verified
+On 2,099 *Listeria monocytogenes* genomes, `--profiles` gives outputs
+byte-identical to `--pairs` with the chewBBACA distance matrix (wgMLST, 6,785
+loci, 59% missing calls) and with an independently computed distance matrix of
+the chewBBACA hashed cgMLST profiles (1,748 loci, half of the CRC32 hashes
+above 2^31). Computing the 1.17 million cross-cohort wgMLST
+distances takes 1.5 s. Runs with `--pairs` give outputs byte-identical to
+0.1.2.
+
 ## [0.1.2] - 2026-10-27
 
 Distance matrices as input, and `cargo install phenocal`.
@@ -116,6 +156,7 @@ measured in several cohorts, with no dependencies.
 - Test suite (offset recovery, anchor invariance, edge selection, cutoff,
   cluster-effective recovery) and CI with rustfmt and clippy.
 
+[0.1.3]: https://github.com/genpat-it/phenocal/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/genpat-it/phenocal/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/genpat-it/phenocal/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/genpat-it/phenocal/releases/tag/v0.1.0

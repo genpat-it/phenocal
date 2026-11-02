@@ -229,7 +229,7 @@ def fig_ml():
 
 MLFLOW = """flowchart LR
     R[/"Raw phenotypes<br/>+ cohort labels"/] --> PC["phenocal"]
-    G[/"Genomic distances"/] --> PC
+    G[/"Allelic profiles<br/>or genomic distances"/] --> PC
     PC --> L1["Calibrated labels<br/>hard or P(T)"]
     PC --> L2["Harmonised<br/>log values"]
     F[/"Model features<br/>genes, alleles, k-mers…"/] --> M1
@@ -240,7 +240,7 @@ MLFLOW = """flowchart LR
 
 FLOW = """flowchart TD
     P[/"Phenotypes<br/>sample · value · cohort"/] --> X
-    D[/"Genomic distances<br/>pair table or distance matrix"/] --> X
+    D[/"Genomes<br/>allelic profiles, distance matrix<br/>or pair table"/] --> X
     X["1 · Cross-cohort pairs<br/>genomic distance d<br/>log-ratio s of the two values"] --> T
     subgraph E["per cohort pair"]
         T["2 · Adaptive bound τ<br/>smallest d with enough pairs<br/>and a stable median"] --> V

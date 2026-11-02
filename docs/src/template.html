@@ -177,11 +177,19 @@ cgMLST or wgMLST allelic distances, plays the role of the reference sample.</p>
 
 <h3 id="pairs"><span class="n">3.1</span>Cross-cohort pairs</h3>
 <p>The inputs are two TSV files: the phenotypes (<code>sample</code>, <code>value</code>,
-<code>cohort</code>) and the genomic distances, either as a pair table
-(<code>sample_i</code>, <code>sample_j</code>, <code>distance</code>) or as a distance matrix
-straight from chewBBACA, ReporTree or cgmlst-dists. phenocal keeps the pairs whose two
-isolates belong to different cohorts. For each, it records the genomic distance \(d\) and
-the log-ratio</p>
+<code>cohort</code>) and the genomes. The genomes are normally given as cgMLST or wgMLST
+allelic profiles (<code>--profiles</code>), the allele-call table that chewBBACA writes as
+<code>results_alleles.tsv</code>, one row per sample and one column per locus; nothing has
+to be computed beforehand. phenocal computes the allelic distance between two samples as
+the number of loci called in both whose alleles differ, the same distance as chewBBACA,
+cgmlst-dists and ReporTree, so missing calls (<code>LNF</code>, <code>ASM</code>,
+<code>0</code>, …) never count as differences.</p>
+<p>Distances computed elsewhere can be given instead (<code>--pairs</code>): a distance
+matrix as written by chewBBACA <code>DistanceMatrix</code>, ReporTree, cgmlst-dists or
+cgDist, or a pair table (<code>sample_i</code>, <code>sample_j</code>,
+<code>distance</code>) for any other ruler, such as SNP distances. Either way, phenocal
+keeps the pairs whose two isolates belong to different cohorts. For each, it records the
+genomic distance \(d\) and the log-ratio</p>
 $$ s = y_i - y_j \qquad (i \text{ in cohort } a,\; j \text{ in cohort } b). $$
 <p>Pairs within one cohort carry no information on the offsets and are ignored.</p>
 
@@ -360,7 +368,7 @@ calibration improves every learner tested.</li>
 <h2 id="example"><span class="n">5</span>Worked example</h2>
 <p>The toy example is in the repository and runs in a fraction of a second:</p>
 <pre><code>phenocal --phenotypes examples/toy_phenotypes.tsv \
-         --pairs examples/toy_distance_matrix.tsv \
+         --profiles examples/toy_profiles.tsv \
          --anchor labA --min-support 2 --out toy</code></pre>
 <p>Three strains (s1, s2, s3) are measured in three laboratories. Every strain is present
 in every laboratory, so every pair of cohorts has three pairs at distance 0.</p>
@@ -376,8 +384,10 @@ in every laboratory, so every pair of cohorts has three pairs at distance 0.</p>
 [2.64, 9.26] against labA: centred on the true factors, and wide because each edge rests
 on three pairs only. After calibration each strain has the same value in every
 laboratory (0.50, 1.00, 2.00 within 1%).</p>
-<p>The same result comes from the pair table <code>examples/toy_pairs.tsv</code>;
-the repository tests check that the two inputs give identical outputs. Add
+<p>The same result comes from the distance matrix
+<code>examples/toy_distance_matrix.tsv</code> or the pair table
+<code>examples/toy_pairs.tsv</code> given with <code>--pairs</code>; the repository tests
+check that the three inputs give identical outputs. Add
 <code>--dashboard toy.html</code> for an interactive report of the run, or
 <code>--trace toy.md</code> for the same calculations written out step by step with the
 actual numbers.</p>

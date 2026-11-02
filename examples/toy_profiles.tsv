@@ -1,0 +1,10 @@
+FILE	lmo0001.fasta	lmo0002.fasta	lmo0003.fasta	lmo0004.fasta	lmo0005.fasta	lmo0006.fasta	lmo0007.fasta	lmo0008.fasta
+s1_A.fasta	1	1	1	4	1	2	1	1
+s1_B.fasta	1	1	1	4	1	2	LNF	1
+s1_C.fasta	1	INF-1	1	4	1	2	1	1
+s2_A.fasta	2	3	1	5	2	2	1	*7
+s2_B.fasta	2	3	1	5	2	2	1	*7
+s2_C.fasta	2	3	ASM	5	2	2	1	*7
+s3_A.fasta	3	3	2	6	3	1	2	2
+s3_B.fasta	3	3	2	6	3	1	2	2
+s3_C.fasta	3	3	2	INF-6	3	1	2	PLOT3

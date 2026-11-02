@@ -16,6 +16,7 @@ mod cutoff;
 mod dashboard;
 mod linalg;
 mod pairs;
+mod profiles;
 mod rng;
 mod trace;
 
@@ -47,6 +48,8 @@ struct Args {
     no_cutoff: bool, // skip only the data-driven cutoff (keep harmonised + labels)
     clusters: Option<String>, // sample->cluster TSV; enables cluster-effective bootstrap
     pairs_format: String, // auto | long | matrix
+    profiles: String,
+    threads: usize,
 }
 
 fn usage() -> ! {
@@ -54,19 +57,27 @@ fn usage() -> ! {
         "phenocal — genome-anchored phenotype calibration
 
 USAGE:
-    phenocal --phenotypes <pheno.tsv> --pairs <pairs.tsv> --out <prefix> [OPTIONS]
+    phenocal --phenotypes <pheno.tsv> --profiles <alleles.tsv> --out <prefix> [OPTIONS]
+    phenocal --phenotypes <pheno.tsv> --pairs <distances.tsv> --out <prefix> [OPTIONS]
 
 REQUIRED:
     --phenotypes <FILE>   TSV with header columns: sample  value  cohort
-    --pairs <FILE>        Genomic distances (within- and cross-cohort allowed,
-                          only cross-cohort pairs are used), either
+    and the genomes, as ONE of:
+    --profiles <FILE>     Allelic profiles (cgMLST or wgMLST), one row per sample
+                          and one column per locus, e.g. chewBBACA
+                          results_alleles.tsv; phenocal computes the distances
+                          (loci called in both samples and differing; INF- is
+                          stripped, 0/LNF/PLOT/NIPH/ASM/ALM/... are missing)
+    --pairs <FILE>        Precomputed genomic distances (within- and cross-cohort
+                          allowed, only cross-cohort pairs are used), either
                           - long TSV with header columns: sample_i  sample_j  distance
                           - square distance matrix, e.g. chewBBACA cgMLST/wgMLST
                             distance_matrix.tsv (upper-triangular) or
                             distance_matrix_symmetric.tsv, cgmlst-dists, cgDist;
                             names match phenotype samples exactly, without the
                             FASTA extension, or by unique id prefix
-                            (S1_shovill.fasta -> S1)
+                            (S1_shovill.fasta -> S1); profile rows are matched
+                            the same way
     --out <PREFIX>        Output prefix. Writes:
                             <prefix>.offsets.tsv    cohort offsets + 95% CrI
                             <prefix>.sigma.tsv      per-cohort resolution sigma_c
@@ -116,6 +127,7 @@ OPTIONS:
                           and cutoff (fast path for large benchmarks).
     --pairs-format <F>    auto | long | matrix (default auto: long when the header
                           has sample_i, sample_j and distance, matrix otherwise)
+    --threads <N>         Threads for the distances from --profiles (default: all)
     -h, --help            Show this help
     -V, --version         Print the version
 "
@@ -146,12 +158,24 @@ fn parse_args() -> Args {
         no_cutoff: false,
         clusters: None,
         pairs_format: "auto".to_string(),
+        profiles: String::new(),
+        threads: std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1),
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
         match arg.as_str() {
             "--phenotypes" => a.phenotypes = it.next().unwrap_or_else(|| usage()),
             "--pairs" => a.pairs = it.next().unwrap_or_else(|| usage()),
+            "--profiles" => a.profiles = it.next().unwrap_or_else(|| usage()),
+            "--threads" => {
+                a.threads = it
+                    .next()
+                    .unwrap_or_else(|| usage())
+                    .parse()
+                    .unwrap_or_else(|_| usage())
+            }
             "--out" => a.out_prefix = it.next().unwrap_or_else(|| usage()),
             "--anchor" => a.anchor = Some(it.next().unwrap_or_else(|| usage())),
             "--already-log" => a.already_log = true,
@@ -241,8 +265,19 @@ fn parse_args() -> Args {
             }
         }
     }
-    if a.phenotypes.is_empty() || a.pairs.is_empty() || a.out_prefix.is_empty() {
+    if a.phenotypes.is_empty() || a.out_prefix.is_empty() {
         usage();
+    }
+    match (a.pairs.is_empty(), a.profiles.is_empty()) {
+        (true, true) => {
+            eprintln!("Give the genomes with --profiles (allele calls) or --pairs (distances).");
+            exit(2);
+        }
+        (false, false) => {
+            eprintln!("--profiles and --pairs are alternatives; give only one.");
+            exit(2);
+        }
+        _ => {}
     }
     a
 }
@@ -431,82 +466,118 @@ fn main() {
         });
         n_cross += 1;
     };
-    let first_line = {
-        use std::io::BufRead;
-        let f = fs::File::open(&args.pairs).unwrap_or_else(|e| {
-            eprintln!("Cannot read {}: {e}", args.pairs);
-            exit(1);
-        });
-        let mut l = String::new();
-        std::io::BufReader::new(f).read_line(&mut l).ok();
-        l
-    };
-    let layout = match args.pairs_format.as_str() {
-        "long" => pairs::Layout::Long,
-        "matrix" => pairs::Layout::Matrix,
-        _ => pairs::detect(first_line.trim_end_matches(['\r', '\n'])),
-    };
-    match layout {
-        pairs::Layout::Long => {
-            let lines = read_lines(&args.pairs);
-            let header: Vec<&str> = lines[0].split('\t').collect();
-            let ci = col(&header, pairs::LONG_I);
-            let cj = col(&header, pairs::LONG_J);
-            let cd = col(&header, pairs::LONG_D);
-            for line in &lines[1..] {
-                if line.trim().is_empty() {
-                    continue;
-                }
-                let f: Vec<&str> = line.split('\t').collect();
-                if f.len() <= ci.max(cj).max(cd) {
-                    continue;
-                }
-                let dist: f64 = match f[cd].trim().parse() {
-                    Ok(v) => v,
-                    Err(_) => continue,
-                };
-                add_pair(f[ci].trim(), f[cj].trim(), dist);
-            }
+    if !args.profiles.is_empty() {
+        let st = profiles::read_profiles(&args.profiles, &ph.cohort, args.threads, &mut add_pair)
+            .unwrap_or_else(|e| {
+                eprintln!("Error: {e}");
+                exit(1);
+            });
+        let mut how = Vec::new();
+        if st.n_matched_by_extension > 0 {
+            how.push(format!(
+                "{} without the FASTA extension",
+                st.n_matched_by_extension
+            ));
         }
-        pairs::Layout::Matrix => {
-            let st =
-                pairs::read_matrix(&args.pairs, &ph.cohort, &mut add_pair).unwrap_or_else(|e| {
-                    eprintln!("Error: {e}");
-                    exit(1);
-                });
-            let mut how = Vec::new();
-            if st.n_matched_by_extension > 0 {
-                how.push(format!(
-                    "{} without the FASTA extension",
-                    st.n_matched_by_extension
-                ));
-            }
-            if let Some((name, id)) = &st.prefix_example {
-                how.push(format!(
-                    "{} by sample-id prefix, e.g. {name} -> {id}",
-                    st.n_matched_by_prefix
-                ));
-            }
-            eprintln!(
-                "pairs: {} distance matrix, {} samples, {} with a phenotype{}{}",
-                match st.triangle {
-                    pairs::Triangle::Symmetric => "symmetric",
-                    pairs::Triangle::Upper => "upper-triangular",
-                    pairs::Triangle::Lower => "lower-triangular",
-                },
-                st.n_genomes,
-                st.n_matched,
-                if how.is_empty() {
-                    String::new()
-                } else {
-                    format!(" (matched {})", how.join("; "))
-                },
-                if st.n_missing_cells > 0 {
-                    format!(", {} missing distances skipped", st.n_missing_cells)
-                } else {
-                    String::new()
+        if let Some((name, id)) = &st.prefix_example {
+            how.push(format!(
+                "{} by sample-id prefix, e.g. {name} -> {id}",
+                st.n_matched_by_prefix
+            ));
+        }
+        eprintln!(
+            "pairs: computed from allelic profiles, {} loci, {} samples, {} with a phenotype{}; \
+             {:.1}% of their calls missing; {} cross-cohort distances",
+            st.n_loci,
+            st.n_samples,
+            st.n_matched,
+            if how.is_empty() {
+                String::new()
+            } else {
+                format!(" (matched {})", how.join("; "))
+            },
+            100.0 * st.n_missing_calls as f64 / (st.n_matched * st.n_loci) as f64,
+            st.n_pairs
+        );
+    } else {
+        let first_line = {
+            use std::io::BufRead;
+            let f = fs::File::open(&args.pairs).unwrap_or_else(|e| {
+                eprintln!("Cannot read {}: {e}", args.pairs);
+                exit(1);
+            });
+            let mut l = String::new();
+            std::io::BufReader::new(f).read_line(&mut l).ok();
+            l
+        };
+        let layout = match args.pairs_format.as_str() {
+            "long" => pairs::Layout::Long,
+            "matrix" => pairs::Layout::Matrix,
+            _ => pairs::detect(first_line.trim_end_matches(['\r', '\n'])),
+        };
+        match layout {
+            pairs::Layout::Long => {
+                let lines = read_lines(&args.pairs);
+                let header: Vec<&str> = lines[0].split('\t').collect();
+                let ci = col(&header, pairs::LONG_I);
+                let cj = col(&header, pairs::LONG_J);
+                let cd = col(&header, pairs::LONG_D);
+                for line in &lines[1..] {
+                    if line.trim().is_empty() {
+                        continue;
+                    }
+                    let f: Vec<&str> = line.split('\t').collect();
+                    if f.len() <= ci.max(cj).max(cd) {
+                        continue;
+                    }
+                    let dist: f64 = match f[cd].trim().parse() {
+                        Ok(v) => v,
+                        Err(_) => continue,
+                    };
+                    add_pair(f[ci].trim(), f[cj].trim(), dist);
                 }
-            );
+            }
+            pairs::Layout::Matrix => {
+                let st = pairs::read_matrix(&args.pairs, &ph.cohort, &mut add_pair).unwrap_or_else(
+                    |e| {
+                        eprintln!("Error: {e}");
+                        exit(1);
+                    },
+                );
+                let mut how = Vec::new();
+                if st.n_matched_by_extension > 0 {
+                    how.push(format!(
+                        "{} without the FASTA extension",
+                        st.n_matched_by_extension
+                    ));
+                }
+                if let Some((name, id)) = &st.prefix_example {
+                    how.push(format!(
+                        "{} by sample-id prefix, e.g. {name} -> {id}",
+                        st.n_matched_by_prefix
+                    ));
+                }
+                eprintln!(
+                    "pairs: {} distance matrix, {} samples, {} with a phenotype{}{}",
+                    match st.triangle {
+                        pairs::Triangle::Symmetric => "symmetric",
+                        pairs::Triangle::Upper => "upper-triangular",
+                        pairs::Triangle::Lower => "lower-triangular",
+                    },
+                    st.n_genomes,
+                    st.n_matched,
+                    if how.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" (matched {})", how.join("; "))
+                    },
+                    if st.n_missing_cells > 0 {
+                        format!(", {} missing distances skipped", st.n_missing_cells)
+                    } else {
+                        String::new()
+                    }
+                );
+            }
         }
     }
     if n_cross == 0 {

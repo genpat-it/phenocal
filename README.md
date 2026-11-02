@@ -16,8 +16,9 @@ with uncertainty-propagated probabilistic labels.**
 `phenocal` is the reference implementation of the genome-anchored
 phenotype-calibration method of de Ruvo et al. (*PhenoCal*; see Citation below).
 It is organism-, phenotype-, and schema-agnostic:
-given a continuous phenotype, a cohort/batch label per sample, and any genomic
-distance that can flag near-clonal pairs, it estimates one calibration offset
+given a continuous phenotype, a cohort/batch label per sample, and the genomes
+as cgMLST/wgMLST allelic profiles (or any genomic distance that can flag
+near-clonal pairs), it estimates one calibration offset
 per cohort and propagates calibration uncertainty into per-cohort credible
 intervals and isolate-level probabilistic labels.
 
@@ -55,7 +56,7 @@ curl -fsSL https://raw.githubusercontent.com/genpat-it/phenocal/main/install.sh 
 ```
 
 It installs `phenocal` into `~/.local/bin`; set `PHENOCAL_INSTALL_DIR` to change
-the directory and `PHENOCAL_VERSION=v0.1.2` to pin a release. Windows users and
+the directory and `PHENOCAL_VERSION=v0.1.3` to pin a release. Windows users and
 anyone preferring a manual install can download the archive for their platform
 from the [latest release](https://github.com/genpat-it/phenocal/releases/latest).
 
@@ -65,7 +66,7 @@ workflow managers):
 ```bash
 docker pull ghcr.io/genpat-it/phenocal:latest
 docker run --rm -v "$PWD:/data" ghcr.io/genpat-it/phenocal \
-    --phenotypes pheno.tsv --pairs distance_matrix.tsv --out result
+    --phenotypes pheno.tsv --profiles results_alleles.tsv --out result
 ```
 
 The image also ships the toy example in `/opt/phenocal/examples`.
@@ -93,9 +94,12 @@ results (see the [changelog](CHANGELOG.md)).
 
 ```bash
 phenocal --phenotypes examples/toy_phenotypes.tsv \
-         --pairs examples/toy_pairs.tsv \
+         --profiles examples/toy_profiles.tsv \
          --anchor labA --min-support 2 --out /tmp/toy
 ```
+
+`--pairs examples/toy_distance_matrix.tsv` or `--pairs examples/toy_pairs.tsv`
+give the same results from precomputed distances.
 
 The toy has three labs measuring three shared strains; `labB` reads ~2× and
 `labC` ~5× higher than `labA`. `phenocal` recovers that:
@@ -108,9 +112,10 @@ labC   5.01x  [2.64, 9.26]
 
 ## Inputs
 
-Two TSV files: the phenotypes, and the genomic distances either as a pair
-table or as a distance matrix (headers are matched case-insensitively; common
-aliases accepted).
+The phenotypes, and the genomes in **one** of three forms: allelic profiles
+(`--profiles`), or precomputed distances as a distance matrix or a pair table
+(`--pairs`). Give `--profiles` or `--pairs`, not both. Headers are matched
+case-insensitively; common aliases are accepted.
 
 **Phenotypes** (`--phenotypes`): one row per sample.
 
@@ -120,24 +125,47 @@ aliases accepted).
 | `value`           | mic, phenotype         | raw phenotype (log10 by default) |
 | `cohort`          | author, batch, study   | cohort / batch label             |
 
-**Distances** (`--pairs`): genomic distances between samples (within- and
-cross-cohort allowed; only cross-cohort pairs are used), in either layout,
-detected from the header:
+### Allelic profiles (`--profiles`), the usual case
 
-*Pair table*, one row per pair:
+The cgMLST or wgMLST allele calls, one row per sample and one column per locus,
+as written by chewBBACA (`results_alleles.tsv`), BIGSdb/pubMLST exports,
+ReporTree or cgmlst-dists input. Nothing has to be computed beforehand:
+phenocal computes the distances itself.
 
-| column      | aliases        | meaning                  |
-|-------------|----------------|--------------------------|
-| `sample_i`  | acc_i, i       | first sample             |
-| `sample_j`  | acc_j, j       | second sample            |
-| `distance`  | dist, d        | genomic distance         |
+```
+FILE         lmo0001.fasta  lmo0002.fasta  lmo0003.fasta  lmo0004.fasta
+S1.fasta     1              INF-12         3              LNF
+S2.fasta     1              12             4              7
+S3.fasta     2              *7             ASM            7
+```
+
+- The distance between two samples is the number of loci **called in both**
+  whose alleles differ (the allelic or Hamming distance of chewBBACA,
+  cgmlst-dists and ReporTree); a missing call never counts as a difference.
+- The chewBBACA `INF-` prefix is removed (`INF-12` is allele 12). `0`, empty
+  cells, `-`, `?`, `N`, `NA` and the chewBBACA classes `LNF`, `PLOT3`, `PLOT5`,
+  `LOTSC`, `NIPH`, `NIPHEM`, `ALM`, `ASM`, `PAMA`, `EXC`, `INV` are missing.
+- Integer alleles are compared by value, so the 32-bit CRC hashes of chewBBACA
+  hashed profiles work at any size; any other text (sequence hashes, `*7`
+  novel alleles) is an allele compared as text.
+- Only the samples with a phenotype are kept, and only cross-cohort distances
+  are computed, on all cores (`--threads` to change). For 2,099 *Listeria*
+  wgMLST profiles (6,785 loci) this takes under two seconds.
+- Row names are matched to the phenotype ids like matrix names (below).
+- `examples/toy_profiles.tsv` is the toy in this form.
+
+### Precomputed distances (`--pairs`)
+
+If you already have the distances, pass them with `--pairs`, in either layout
+(detected from the header; `--pairs-format long|matrix` forces one). Within-
+and cross-cohort pairs are allowed; only cross-cohort pairs are used.
 
 *Distance matrix*, a square TSV whose first header cell is any label and whose
 other header cells, and first cell of each row, are the sample names (same
-order in rows and columns). This is the layout of the chewBBACA allelic
-distance matrix, for cgMLST and wgMLST alike, of ReporTree
-(`<prefix>_dist_hamming.tsv`), cgmlst-dists and cgDist, so their output can be
-passed as it is:
+order in rows and columns): the output of chewBBACA `DistanceMatrix`
+(`distance_matrix.tsv`, `distance_matrix_symmetric.tsv`), ReporTree
+(`<prefix>_dist_hamming.tsv`), cgmlst-dists, cgDist, for cgMLST and wgMLST
+alike, passed as it is:
 
 ```
 FILE        S1.fasta  S2.fasta  S3.fasta
@@ -150,22 +178,30 @@ S3.fasta                        0
   empty (chewBBACA `distance_matrix.tsv`) or filled with zeros (cgmlst-dists
   `--matrix-format lower-tri`/`upper-tri`); each pair is read once. A matrix
   whose two halves disagree is rejected.
-- Matrix names are matched to the phenotype `sample` ids exactly, without the
+- Names are matched to the phenotype `sample` ids exactly, without the
   FASTA extension (`S1.fasta` → `S1`), or by unique id prefix
   (`S1_shovill.fasta` → `S1`, the assembler suffix kept by chewBBACA from the
   file name); the run reports how many names matched each way. Samples without
   a phenotype are ignored; `NA` or empty cells are skipped.
 - The matrix is streamed, so memory does not grow with its size beyond the
   cross-cohort pairs kept. `examples/toy_distance_matrix.tsv` is the toy in this
-  layout and gives the same results as `examples/toy_pairs.tsv`.
-- `--pairs-format long|matrix` forces a layout instead of detecting it.
+  layout.
+
+*Pair table*, one row per pair, each pair once (useful for SNP distances or
+any other ruler):
+
+| column      | aliases        | meaning                  |
+|-------------|----------------|--------------------------|
+| `sample_i`  | acc_i, i       | first sample             |
+| `sample_j`  | acc_j, j       | second sample            |
+| `distance`  | dist, d        | genomic distance         |
 
 ## Run
 
 ```bash
 phenocal \
   --phenotypes pheno.tsv \
-  --pairs pairs.tsv \
+  --profiles results_alleles.tsv \
   --out result \
   --anchor USA              # optional; default = largest cohort
   --dashboard result.html   # optional; interactive HTML report
@@ -189,6 +225,7 @@ phenocal \
 | `--clusters <FILE>` | TSV `sample<TAB>cluster` of clonal-cluster ids; enables the **cluster-effective** inference (cluster-weighted point + cluster-resampled 95% interval), the preferred summary when near-clonal pairs are nested in clusters | off (pair-level only) |
 | `--no-cutoff` | skip the (costly) data-driven cutoff estimation; still writes harmonised + labels | off |
 | `--pairs-format <auto\|long\|matrix>` | layout of `--pairs` (pair table or distance matrix) | auto (from the header) |
+| `--threads <N>` | threads for the distances computed from `--profiles` | all cores |
 | `--seed <S>` | RNG seed | 20260603 |
 | `--dashboard <FILE>` | also write the interactive HTML report (open locally) | off |
 | `--trace <FILE>` | also write a step-by-step **mathematical trace** in Markdown (renders on GitHub, no compilation) | off |
@@ -202,7 +239,7 @@ pairs from one cluster are not independent and the pair-level interval is
 anticonservative. Pass a `sample<TAB>cluster` table:
 
 ```
-phenocal --phenotypes pheno.tsv --pairs pairs.tsv --clusters clusters.tsv \
+phenocal --phenotypes pheno.tsv --profiles results_alleles.tsv --clusters clusters.tsv \
          --anchor USA --out out
 ```
 
@@ -246,7 +283,7 @@ compilation, no Docker, just open it.
 ```mermaid
 flowchart TD
     P[/"Phenotypes<br/>sample · value · cohort"/] --> X
-    D[/"Genomic distances<br/>pair table or distance matrix"/] --> X
+    D[/"Genomes<br/>allelic profiles, distance matrix<br/>or pair table"/] --> X
     X["1 · Cross-cohort pairs<br/>genomic distance d<br/>log-ratio s of the two values"] --> T
     subgraph E["per cohort pair"]
         T["2 · Adaptive bound τ<br/>smallest d with enough pairs<br/>and a stable median"] --> V
@@ -258,10 +295,10 @@ flowchart TD
     H --> C["Cutoff on the harmonised scale<br/>KDE antimode · GMM crossover"]
 ```
 
-1. Collect cross-cohort pairs with distance `d` and signed log-phenotype
-   difference `s = y_a − y_b` (oriented `a` over `b`). Every pair given is used,
-   so each isolate pair should appear once: a distance matrix guarantees it,
-   a pair table should not repeat a pair.
+1. Collect cross-cohort pairs with distance `d` (computed from the allelic
+   profiles, or read from `--pairs`) and signed log-phenotype difference
+   `s = y_a − y_b` (oriented `a` over `b`). Every pair is used once: profiles
+   and distance matrices guarantee it, a pair table should not repeat a pair.
 2. Adaptive `τ`: smallest distance bound with ≥ `min-support` pairs **and**
    median drift ≤ `max-drift · σ̄_ab` from the `d_min` value, where `σ̄_ab` is the
    edge resolution set by `--drift-scale` (`= log10(2)` for two-fold grids).

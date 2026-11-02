@@ -46,15 +46,15 @@ fn cli_toy_recovers_2x_5x_and_emits_tables() {
 /// The chewBBACA-style distance matrix of the toy (upper-triangular, genomes
 /// named `<sample>.fasta`) must give exactly the outputs of the long pair table.
 #[test]
-fn cli_chewbbaca_matrix_matches_long_pairs() {
-    let run = |pairs: &str, name: &str| -> String {
+fn cli_chewbbaca_matrix_and_profiles_match_long_pairs() {
+    let run = |flag: &str, pairs: &str, name: &str| -> String {
         let prefix = std::env::temp_dir().join(name);
         let prefix = prefix.to_str().unwrap().to_string();
         let status = Command::new(env!("CARGO_BIN_EXE_phenocal"))
             .args([
                 "--phenotypes",
                 "examples/toy_phenotypes.tsv",
-                "--pairs",
+                flag,
                 pairs,
                 "--anchor",
                 "labA",
@@ -68,8 +68,17 @@ fn cli_chewbbaca_matrix_matches_long_pairs() {
         assert!(status.success(), "phenocal failed on {pairs}");
         prefix
     };
-    let long = run("examples/toy_pairs.tsv", "phenocal_cli_long");
-    let matrix = run("examples/toy_distance_matrix.tsv", "phenocal_cli_matrix");
+    let long = run("--pairs", "examples/toy_pairs.tsv", "phenocal_cli_long");
+    let matrix = run(
+        "--pairs",
+        "examples/toy_distance_matrix.tsv",
+        "phenocal_cli_matrix",
+    );
+    let profiles = run(
+        "--profiles",
+        "examples/toy_profiles.tsv",
+        "phenocal_cli_profiles",
+    );
     for ext in [
         "offsets",
         "sigma",
@@ -81,5 +90,7 @@ fn cli_chewbbaca_matrix_matches_long_pairs() {
         let a = std::fs::read_to_string(format!("{long}.{ext}.tsv")).unwrap();
         let b = std::fs::read_to_string(format!("{matrix}.{ext}.tsv")).unwrap();
         assert_eq!(a, b, "{ext}.tsv differs between long pairs and matrix");
+        let c = std::fs::read_to_string(format!("{profiles}.{ext}.tsv")).unwrap();
+        assert_eq!(a, c, "{ext}.tsv differs between long pairs and profiles");
     }
 }
