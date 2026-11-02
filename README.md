@@ -43,8 +43,11 @@ median ratio between genetically identical isolates measured in the two
 cohorts, and the offsets δ are the values on the nodes that best explain all
 edges at once.*
 
-**A step-by-step explanation of the method, with figures and the toy example
-worked through, is at <https://genpat-it.github.io/phenocal/>.**
+**A step-by-step explanation of the method, with figures, is at
+<https://genpat-it.github.io/phenocal/>; every calculation is worked out by hand,
+from allelic profiles to labels, in the
+[worked example](https://genpat-it.github.io/phenocal/worked.html)
+(`examples/worked_*.tsv`).**
 
 ## Installation
 

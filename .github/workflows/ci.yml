@@ -54,6 +54,19 @@ jobs:
             --anchor labA --min-support 2 --out /tmp/toy_profiles
           docker run --rm --entrypoint "" phenocal:ci /bin/sh -c 'ps >/dev/null && echo "ps ok"'
 
+  pages:
+    name: GitHub Pages are up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release --locked
+      - name: Rebuild the pages and check every number against phenocal
+        run: |
+          python3 docs/src/build.py docs/index.html docs/src/template.html
+          python3 docs/src/build_worked.py docs/worked.html target/release/phenocal
+          git diff --exit-code docs/
+
   installer:
     name: install.sh (shellcheck)
     runs-on: ubuntu-latest

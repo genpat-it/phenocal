@@ -565,13 +565,13 @@ fn solve_section(s: &mut String, c: &Ctx) {
             "| {}{} | {:.4} | {:.2}× |\n",
             code(name),
             if i == c.anchor { " (anchor)" } else { "" },
-            c.sol.delta[i],
-            fold(c.sol.delta[i])
+            c.sol.wls[i],
+            fold(c.sol.wls[i])
         ));
     }
     s.push('\n');
     s.push_str(&format!(
-        "Weighted residual RMSE $={:.4}$ log10 ($={:.2}$ dilutions). Offsets are identifiable only up to an additive constant (the anchor is a gauge choice; differences are unique).\n\n",
+        "Weighted residual RMSE $={:.4}$ log10 ($={:.2}$ dilutions). Offsets are identifiable only up to an additive constant (the anchor is a gauge choice; differences are unique). The offsets reported in `offsets.tsv` are the medians of the bootstrap of §6; since the solution is linear in the edge values they differ from these only by Monte Carlo error.\n\n",
         c.sol.rmse,
         c.sol.rmse / LOG10_2
     ));

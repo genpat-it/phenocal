@@ -245,6 +245,7 @@ fn wls(
 
 pub struct Solution {
     pub delta: Vec<f64>, // per cohort (anchor = 0)
+    pub wls: Vec<f64>,   // the WLS solution on the point edge values
     pub lo95: Vec<f64>,
     pub hi95: Vec<f64>,
     pub rmse: f64,
@@ -326,6 +327,7 @@ pub fn fit(
         med[*c] = quantile(&d, 0.5);
     }
     Ok(Solution {
+        wls: delta_full,
         delta: med,
         lo95: lo,
         hi95: hi,
@@ -462,6 +464,7 @@ pub fn fit_cluster_effective(
         hi[*c] = quantile(&d, 0.975);
     }
     Ok(Solution {
+        wls: cw_full.clone(),
         delta: cw_full, // cluster-weighted point (not the bootstrap median)
         lo95: lo,
         hi95: hi,
