@@ -5,7 +5,48 @@ to the previous one on the same input unless stated otherwise.
 
 ## [Unreleased]
 
+Robust edges for labs that are already harmonised, or whose twins come from a
+few outbreak clones. All new options are off by default: without them the
+outputs are byte-identical to 0.1.3 (checked in CI against `tests/golden`).
+
 ### Added
+- **`--support-unit cluster`** (with `--clusters`): each clonal cluster is one
+  unit of evidence. An edge needs `--min-support` distinct clusters, its value
+  is the median of the per-cluster medians and its standard error uses the
+  number of clusters. With the default `pair`, one outbreak clone shared by two
+  labs can supply most of the pairs of an edge and set the offset on its own;
+  with `cluster` it has one vote.
+- **`--max-tau <D>`**: largest genomic distance a twin pair may have. Pairs
+  farther apart never enter an edge (default: no cap).
+- **`--unsupported keep|drop`**: an edge that never reaches `--min-support`
+  within `--max-tau` is kept with all its pairs, down-weighted (`keep`,
+  default, as before) or left out (`drop`).
+- **`--unlinked fail|zero`**: a cohort with no edge path to the anchor stops
+  the run (`fail`, default, as before) or keeps offset 0 and is marked
+  `unlinked` in the `anchor` column of `offsets.tsv` (`zero`).
+- Suggested setting when the labs may already agree:
+  `--clusters C --support-unit cluster --min-support 3 --max-tau <twin bound>
+  --unsupported drop --unlinked zero`. On held-out twins of the CRyPTIC
+  *M. tuberculosis* data (13 drugs, 11 labs on one plate design) it leaves the
+  agreement between labs unchanged (mean absolute difference 0.85 doublings, as
+  without calibration; the default setting gives 0.97), and on the five
+  *Listeria* BC labs it improves it in 10 of 10 folds (1.43 → 0.78 doublings;
+  default 0.84, 8 of 10). The price is power: with few independent clones per
+  lab pair many edges are dropped, so offsets added on purpose to CRyPTIC are
+  only partly recovered (1.63 → 1.54 doublings; default 0.97).
+- `tests/robust.rs`: defaults reproduce the 0.1.3 outputs on the toy example;
+  one outbreak clone does not create an offset with `--support-unit cluster`;
+  a real offset carried by several clones is recovered; a lab with too few
+  clones is reported as unlinked (and fails by default); `--clusters` output is
+  reproducible.
+
+### Fixed
+- `--clusters`: the cluster-effective 95% intervals changed slightly from run
+  to run with the same seed, because the clusters were resampled in hash-map
+  order. They are now resampled in a fixed order, so the same seed gives the
+  same intervals. The point estimates were not affected.
+
+### Added (documentation)
 - Worked example on the GitHub Pages site (`worked.html`): a small data set
   with noise (`examples/worked_profiles.tsv`, `examples/worked_phenotypes.tsv`)
   taken from the allelic profiles to the labels, every number computed by hand.

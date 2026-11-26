@@ -1,0 +1,4 @@
+cohort	n	delta_log10	fold	fold_lo95	fold_hi95	anchor
+labA	3	0.00000	1.0000	1.0000	1.0000	yes
+labB	3	0.29785	1.9854	1.0510	3.7845	no
+labC	3	0.69943	5.0053	2.6407	9.2588	no

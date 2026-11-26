@@ -1,0 +1,4 @@
+cohort_a	cohort_b	d_min	tau	n_pairs	fold_a_over_b	se_log10	weight
+labA	labB	0.000	0.000	3	0.5000	0.1738	33.106
+labA	labC	0.000	0.000	3	0.2000	0.1738	33.106
+labB	labC	0.000	0.000	3	0.4000	0.1738	33.106
