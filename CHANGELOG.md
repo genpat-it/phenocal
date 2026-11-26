@@ -219,6 +219,7 @@ measured in several cohorts, with no dependencies.
 - Test suite (offset recovery, anchor invariance, edge selection, cutoff,
   cluster-effective recovery) and CI with rustfmt and clippy.
 
+[0.1.4]: https://github.com/genpat-it/phenocal/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/genpat-it/phenocal/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/genpat-it/phenocal/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/genpat-it/phenocal/compare/v0.1.0...v0.1.1
