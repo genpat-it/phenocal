@@ -26,14 +26,16 @@ outputs are byte-identical to 0.1.3 (checked in CI against `tests/golden`).
   `unlinked` in the `anchor` column of `offsets.tsv` (`zero`).
 - Suggested setting when the labs may already agree:
   `--clusters C --support-unit cluster --min-support 3 --max-tau <twin bound>
-  --unsupported drop --unlinked zero`. On held-out twins of the CRyPTIC
-  *M. tuberculosis* data (13 drugs, 11 labs on one plate design) it leaves the
-  agreement between labs unchanged (mean absolute difference 0.85 doublings, as
-  without calibration; the default setting gives 0.97), and on the five
-  *Listeria* BC labs it improves it in 10 of 10 folds (1.43 → 0.78 doublings;
-  default 0.84, 8 of 10). The price is power: with few independent clones per
-  lab pair many edges are dropped, so offsets added on purpose to CRyPTIC are
-  only partly recovered (1.63 → 1.54 doublings; default 0.97).
+  --unsupported drop --unlinked zero`. Held-out twin benchmark (phenocal fitted
+  on 4 of 5 folds of clonal clusters, scored on the cross-lab twins of the fifth;
+  genpat-it/phenocal-ml-benchmark, `cryptic/`): on the CRyPTIC
+  *M. tuberculosis* data (14 drugs, 13 labs reading the same plates) the default
+  setting makes twins agree less in 13 of 14 drugs (+0.15 doublings of mean
+  absolute difference), the robust setting leaves agreement unchanged (−0.003,
+  p = 0.84); on the five *Listeria* BC labs both correct the shifted labs
+  (1.57 → 0.93 default, 0.91 robust). The price is power: with few independent
+  clones per lab pair many labs are left unlinked, and of a shift added on
+  purpose to two CRyPTIC labs the robust setting recovers 16% (default 98%).
 - `tests/robust.rs`: defaults reproduce the 0.1.3 outputs on the toy example;
   one outbreak clone does not create an offset with `--support-unit cluster`;
   a real offset carried by several clones is recovered; a lab with too few
