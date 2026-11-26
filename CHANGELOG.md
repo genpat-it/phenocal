@@ -3,7 +3,7 @@
 All notable changes to phenocal. Every release gives byte-identical results
 to the previous one on the same input unless stated otherwise.
 
-## [Unreleased]
+## [0.1.4] - 2026-11-26
 
 Robust edges for labs that are already harmonised, or whose twins come from a
 few outbreak clones. All new options are off by default: without them the

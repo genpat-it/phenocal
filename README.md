@@ -59,7 +59,7 @@ curl -fsSL https://raw.githubusercontent.com/genpat-it/phenocal/main/install.sh 
 ```
 
 It installs `phenocal` into `~/.local/bin`; set `PHENOCAL_INSTALL_DIR` to change
-the directory and `PHENOCAL_VERSION=v0.1.3` to pin a release. Windows users and
+the directory and `PHENOCAL_VERSION=v0.1.4` to pin a release. Windows users and
 anyone preferring a manual install can download the archive for their platform
 from the [latest release](https://github.com/genpat-it/phenocal/releases/latest).
 
