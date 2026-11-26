@@ -63,6 +63,42 @@ pub struct Params {
     /// Drift-tolerance scale (units of the τ-drift bound):
     /// 0 = doubling (log10 2), 1 = rms of σ (default), 2 = mean of σ, 3 = max of σ.
     pub drift_scale: u8,
+    /// Support unit for tau selection, the edge point and the edge SE:
+    /// false = near-clonal pairs (classic); true = clonal clusters (one vote per
+    /// cluster: point = median of per-cluster medians, n = number of clusters).
+    pub unit_cluster: bool,
+    /// Largest genomic distance a twin pair may have (f64::INFINITY = no cap).
+    pub max_tau: f64,
+    /// Drop an edge that never reaches min_support within max_tau (classic: keep it
+    /// with all its pairs, down-weighted).
+    pub drop_unsupported: bool,
+    /// Cohorts not linked to the anchor get offset 0 and are reported as unlinked
+    /// (classic: the fit fails).
+    pub allow_unlinked: bool,
+}
+
+/// Unit key of a pair: its clonal cluster, or the pair itself if no id is known.
+fn unit_key(c: &EdgePair) -> String {
+    if c.cluster.is_empty() {
+        format!("{}|{}", c.si, c.sj)
+    } else {
+        c.cluster.clone()
+    }
+}
+
+/// Edge point and support for the pairs within a tau: the median over pairs and
+/// the pair count (classic), or the median of per-cluster medians and the cluster count.
+fn edge_point(pairs: &[&EdgePair], unit_cluster: bool) -> (f64, usize) {
+    if !unit_cluster {
+        let v: Vec<f64> = pairs.iter().map(|x| x.signed).collect();
+        return (median(&v), v.len());
+    }
+    let mut m: std::collections::BTreeMap<String, Vec<f64>> = std::collections::BTreeMap::new();
+    for x in pairs {
+        m.entry(unit_key(x)).or_default().push(x.signed);
+    }
+    let cms: Vec<f64> = m.values().map(|v| median(v)).collect();
+    (median(&cms), cms.len())
 }
 
 /// Adaptive tau selection + edge statistics for one cohort pair.
@@ -78,22 +114,22 @@ fn build_edge(
     if pairs.is_empty() {
         return None;
     }
-    // sort by distance
+    // sort by distance; pairs beyond max_tau never enter the edge
     pairs.sort_by(|x, y| x.dist.partial_cmp(&y.dist).unwrap());
     let d_min = pairs[0].dist;
-    let base_vals: Vec<f64> = pairs
-        .iter()
-        .filter(|x| x.dist == d_min)
-        .map(|x| x.signed)
-        .collect();
-    let base = median(&base_vals);
+    let within: Vec<&EdgePair> = pairs.iter().filter(|x| x.dist <= p.max_tau).collect();
+    if within.is_empty() {
+        return None;
+    }
+    let base_set: Vec<&EdgePair> = within.iter().copied().filter(|x| x.dist == d_min).collect();
+    let (base, _) = edge_point(&base_set, p.unit_cluster);
 
     // candidate taus = the distinct distances, ascending
-    let mut taus: Vec<f64> = pairs.iter().map(|x| x.dist).collect();
+    let mut taus: Vec<f64> = within.iter().map(|x| x.dist).collect();
     taus.dedup();
 
     let mut chosen_tau = *taus.last().unwrap();
-    let mut chosen_vals: Vec<f64> = pairs.iter().map(|x| x.signed).collect();
+    let (mut delta, mut n) = edge_point(&within, p.unit_cluster);
     let mut satisfied = false;
     // drift tolerance scale (does not assume a two-fold grid unless drift_scale=0):
     // reduces to log10(2) when both cohorts are two-fold (sigma=log10 2).
@@ -105,24 +141,22 @@ fn build_edge(
     }
     .max(1e-9);
     for &tau in &taus {
-        let vals: Vec<f64> = pairs
-            .iter()
-            .filter(|x| x.dist <= tau)
-            .map(|x| x.signed)
-            .collect();
-        let drift = (median(&vals) - base).abs() / edge_res;
-        if vals.len() >= p.min_support && drift <= p.max_drift_dilutions {
+        let sel: Vec<&EdgePair> = within.iter().copied().filter(|x| x.dist <= tau).collect();
+        let (pt, support) = edge_point(&sel, p.unit_cluster);
+        let drift = (pt - base).abs() / edge_res;
+        if support >= p.min_support && drift <= p.max_drift_dilutions {
             chosen_tau = tau;
-            chosen_vals = vals;
+            delta = pt;
+            n = support;
             satisfied = true;
             break;
         }
     }
-    // If we never reached min_support, fall back to all pairs (kept, but down-weighted
-    // through the large tau / small n in the SE below).
-    if !satisfied {
-        chosen_vals = pairs.iter().map(|x| x.signed).collect();
-        chosen_tau = *taus.last().unwrap();
+    // If we never reached min_support: classic keeps the edge with all its pairs
+    // (down-weighted through the large tau / small n in the SE below); with
+    // drop_unsupported the edge is left out.
+    if !satisfied && p.drop_unsupported {
+        return None;
     }
 
     // flag which candidates entered the median
@@ -130,12 +164,11 @@ fn build_edge(
         pr.used = pr.dist <= chosen_tau;
     }
 
-    let n = chosen_vals.len();
-    let delta = median(&chosen_vals);
     // Protocol-agnostic edge SE: cohort-specific resolution sigma_a, sigma_b plus
     // a biological-drift variance growing with genetic distance (lambda * tau),
-    // averaged over the n supporting pairs. With sigma = log10(2)/sqrt(2) and
-    // lambda = log10(2)^2 this reduces exactly to log10(2)*sqrt((1+tau)/n).
+    // averaged over the n supporting units (pairs, or clusters). With
+    // sigma = log10(2)/sqrt(2) and lambda = log10(2)^2 this reduces exactly to
+    // log10(2)*sqrt((1+tau)/n).
     let se = ((sigma_a * sigma_a + sigma_b * sigma_b + p.lambda * chosen_tau) / n as f64).sqrt();
     let weight = 1.0 / (se * se);
     Some(Edge {
@@ -209,6 +242,47 @@ pub fn build_edges(pairs: &[Pair], n_cohorts: usize, p: &Params) -> Vec<Edge> {
     edges
 }
 
+/// Cohorts reachable from the anchor through the edges.
+pub fn linked_cohorts(edges: &[Edge], n_cohorts: usize, anchor: usize) -> Vec<bool> {
+    let mut seen = vec![false; n_cohorts];
+    seen[anchor] = true;
+    let mut grow = true;
+    while grow {
+        grow = false;
+        for e in edges {
+            if seen[e.a] != seen[e.b] {
+                seen[e.a] = true;
+                seen[e.b] = true;
+                grow = true;
+            }
+        }
+    }
+    seen
+}
+
+/// Free (non-anchor) cohorts that enter the WLS, as (cohort -> column, list).
+/// Unlinked cohorts are an error unless p.allow_unlinked (then they keep offset 0).
+fn free_columns(
+    edges: &[Edge],
+    n_cohorts: usize,
+    anchor: usize,
+    p: &Params,
+) -> Result<(HashMap<usize, usize>, Vec<usize>), String> {
+    let linked = linked_cohorts(edges, n_cohorts, anchor);
+    if !p.allow_unlinked && linked.iter().any(|l| !l) {
+        return Err("Calibration graph is singular (disconnected from anchor?).".to_string());
+    }
+    let mut free_col = HashMap::new();
+    let mut free_list = Vec::new();
+    for (c, &is_linked) in linked.iter().enumerate() {
+        if c != anchor && (is_linked || !p.allow_unlinked) {
+            free_col.insert(c, free_list.len());
+            free_list.push(c);
+        }
+    }
+    Ok((free_col, free_list))
+}
+
 /// Solve weighted least squares for the free cohorts given edge deltas.
 /// `anchor` is fixed to 0. `free` maps cohort index -> column index (anchor absent).
 fn wls(
@@ -259,14 +333,7 @@ pub fn fit(
     p: &Params,
 ) -> Result<Solution, String> {
     // free cohorts = all except anchor
-    let mut free_col = HashMap::new();
-    let mut free_list = Vec::new();
-    for c in 0..n_cohorts {
-        if c != anchor {
-            free_col.insert(c, free_list.len());
-            free_list.push(c);
-        }
-    }
+    let (free_col, free_list) = free_columns(edges, n_cohorts, anchor, p)?;
     let k = free_list.len();
 
     let point_deltas: Vec<f64> = edges.iter().map(|e| e.delta).collect();
@@ -349,14 +416,7 @@ pub fn fit_cluster_effective(
     anchor: usize,
     p: &Params,
 ) -> Result<Solution, String> {
-    let mut free_col = HashMap::new();
-    let mut free_list = Vec::new();
-    for c in 0..n_cohorts {
-        if c != anchor {
-            free_col.insert(c, free_list.len());
-            free_list.push(c);
-        }
-    }
+    let (free_col, free_list) = free_columns(edges, n_cohorts, anchor, p)?;
     let k = free_list.len();
 
     // per-edge: signed values of used pairs grouped by clonal cluster
@@ -409,7 +469,9 @@ pub fn fit_cluster_effective(
     // treat those edges as independent and understate the joint uncertainty.
     // Build the global group registry: group key -> (edge index -> signed values).
     let n_edges = edges.len();
-    let mut reg: HashMap<String, HashMap<usize, Vec<f64>>> = HashMap::new();
+    // ordered maps: the draw sequence must not depend on hash order (same seed, same CIs)
+    let mut reg: std::collections::BTreeMap<String, std::collections::BTreeMap<usize, Vec<f64>>> =
+        std::collections::BTreeMap::new();
     for (ei, e) in edges.iter().enumerate() {
         for c in e.cand.iter().filter(|c| c.used) {
             let key = if c.cluster.is_empty() {
@@ -487,6 +549,10 @@ mod tests {
             robust: false,
             nu: 4.0,
             drift_scale: 1,
+            unit_cluster: false,
+            max_tau: f64::INFINITY,
+            drop_unsupported: false,
+            allow_unlinked: false,
         }
     }
 

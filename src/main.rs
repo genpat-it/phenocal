@@ -50,6 +50,10 @@ struct Args {
     pairs_format: String, // auto | long | matrix
     profiles: String,
     threads: usize,
+    support_unit: String, // pair | cluster
+    max_tau: f64,
+    unsupported: String, // keep | drop
+    unlinked: String,    // fail | zero
 }
 
 fn usage() -> ! {
@@ -120,6 +124,22 @@ OPTIONS:
                           and a cluster-effective 95% interval (bootstrap resampling
                           clonal clusters, not pairs) -- the preferred inferential
                           summary when near-clonal pairs are nested in clusters.
+    --support-unit <U>    'pair' (default) or 'cluster' (needs --clusters). With
+                          'cluster', each clonal cluster is one unit: an edge needs
+                          --min-support distinct clusters, its point is the median
+                          of the per-cluster medians, and its SE uses the number of
+                          clusters. Use it when many twin pairs come from a few
+                          clones (outbreaks), so that one clone cannot set an offset.
+    --max-tau <D>         Largest genomic distance a twin pair may have (default:
+                          no cap). Pairs farther apart never enter an edge.
+    --unsupported <M>     An edge that never reaches --min-support within
+                          --max-tau: 'keep' it with all its pairs, down-weighted
+                          (default), or 'drop' it.
+    --unlinked <M>        A cohort with no edge path to the anchor: 'fail'
+                          (default) or 'zero' (offset 0, reported as unlinked).
+                          Robust setting for already-harmonised labs:
+                          --clusters C --support-unit cluster --min-support 3
+                          --max-tau <twin bound> --unsupported drop --unlinked zero
     --no-cutoff           Skip the data-driven cutoff estimation (the costly
                           GMM/KDE bootstrap); still writes harmonised + labels.
                           Use with --thresholds to supply a known cutoff.
@@ -162,6 +182,10 @@ fn parse_args() -> Args {
         threads: std::thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(1),
+        support_unit: "pair".to_string(),
+        max_tau: f64::INFINITY,
+        unsupported: "keep".to_string(),
+        unlinked: "fail".to_string(),
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -244,6 +268,31 @@ fn parse_args() -> Args {
                     .parse()
                     .unwrap_or_else(|_| usage())
             }
+            "--support-unit" => {
+                a.support_unit = it.next().unwrap_or_else(|| usage());
+                if !matches!(a.support_unit.as_str(), "pair" | "cluster") {
+                    usage();
+                }
+            }
+            "--max-tau" => {
+                a.max_tau = it
+                    .next()
+                    .unwrap_or_else(|| usage())
+                    .parse()
+                    .unwrap_or_else(|_| usage())
+            }
+            "--unsupported" => {
+                a.unsupported = it.next().unwrap_or_else(|| usage());
+                if !matches!(a.unsupported.as_str(), "keep" | "drop") {
+                    usage();
+                }
+            }
+            "--unlinked" => {
+                a.unlinked = it.next().unwrap_or_else(|| usage());
+                if !matches!(a.unlinked.as_str(), "fail" | "zero") {
+                    usage();
+                }
+            }
             "--robust" => a.robust = true,
             "--nu" => {
                 a.nu = it
@@ -267,6 +316,10 @@ fn parse_args() -> Args {
     }
     if a.phenotypes.is_empty() || a.out_prefix.is_empty() {
         usage();
+    }
+    if a.support_unit == "cluster" && a.clusters.is_none() {
+        eprintln!("--support-unit cluster needs --clusters (sample<TAB>cluster).");
+        exit(2);
     }
     match (a.pairs.is_empty(), a.profiles.is_empty()) {
         (true, true) => {
@@ -610,6 +663,10 @@ fn main() {
         robust: args.robust,
         nu: args.nu,
         drift_scale: args.drift_scale,
+        unit_cluster: args.support_unit == "cluster",
+        max_tau: args.max_tau,
+        drop_unsupported: args.unsupported == "drop",
+        allow_unlinked: args.unlinked == "zero",
     };
 
     let edges = build_edges(&pairs, ph.cohorts.len(), &params);
@@ -617,6 +674,13 @@ fn main() {
         eprintln!("Calibration failed: {e}");
         exit(1);
     });
+
+    let linked = calib::linked_cohorts(&edges, ph.cohorts.len(), anchor);
+    for (i, c) in ph.cohorts.iter().enumerate() {
+        if !linked[i] {
+            eprintln!("Cohort '{c}' has no edge path to the anchor: offset 0 (unlinked).");
+        }
+    }
 
     // ---- cluster-effective fit (preferred inference when cluster ids are given) ----
     let sol_ce = if args.clusters.is_some() {
@@ -658,7 +722,13 @@ fn main() {
                 10f64.powf(ce.hi95[i]),
             ));
         }
-        off.push_str(if i == anchor { "yes\n" } else { "no\n" });
+        off.push_str(if i == anchor {
+            "yes\n"
+        } else if !linked[i] {
+            "unlinked\n"
+        } else {
+            "no\n"
+        });
     }
     write(&format!("{}.offsets.tsv", args.out_prefix), &off);
     if let Some(ce) = &sol_ce {
@@ -906,6 +976,10 @@ fn main() {
                 robust: args.robust,
                 nu: args.nu,
                 drift_scale: ds,
+                unit_cluster: args.support_unit == "cluster",
+                max_tau: args.max_tau,
+                drop_unsupported: args.unsupported == "drop",
+                allow_unlinked: args.unlinked == "zero",
             };
             let edg = build_edges(&pairs, ncoh, &p);
             if let Ok(so) = fit(&edg, ncoh, anchor, &p) {

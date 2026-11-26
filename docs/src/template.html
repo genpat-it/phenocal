@@ -143,7 +143,9 @@ bound \(\tau_{ab}\) is the smallest distance \(\tau\) observed in \(P_{ab}\) suc
 $$ n(\tau) = \#\{(i,j) \in P_{ab} : d_{ij} \le \tau\} \ge n_{\min}
 \quad\text{and}\quad
 \big|\operatorname{median}\{s_{ij} : d_{ij} \le \tau\} - m_0\big| \le \kappa\,\bar\sigma_{ab}. \tag{4} $$
-If no distance satisfies both conditions, all pairs of \(P_{ab}\) are used.</p></div>
+If no distance satisfies both conditions, all pairs of \(P_{ab}\) are used, or, with
+<code>--unsupported drop</code>, the edge is left out. With <code>--max-tau</code>
+\(\tau_{\max}\), \(P_{ab}\) contains only the pairs with \(d_{ij} \le \tau_{\max}\).</p></div>
 <p>The first condition requires enough pairs (<code>--min-support</code>, \(n_{\min}=5\)
 by default); the second stops the bound as soon as more distant pairs move the median by
 more than \(\kappa\) units of measurement resolution (<code>--max-drift</code>,
@@ -180,6 +182,18 @@ series, and \(\lambda = (\log_{10} 2)^2\) per allele; <code>--sigma empirical</c
 each \(\sigma_c\) from the spacing of the cohort's own measurement grid. With the defaults
 Eq. (6) reduces to \(\log_{10} 2 \cdot \sqrt{(1 + \tau)/n}\).</p>
 
+<p><b>Counting clones instead of pairs.</b> Pairs from one clonal cluster are not
+independent: when a clone was sampled many times in two cohorts it can supply most of
+\(P_{ab}\), and Eqs. (4)–(6) then count one observation many times. Given a table assigning
+isolates to clusters (<code>--clusters</code>), <code>--support-unit cluster</code> makes the
+cluster the unit of evidence. Let \(K_{ab}(\tau)\) be the clusters with at least one pair in
+\(P_{ab}\) at distance \(\le \tau\) and \(S_k\) the log-ratios of cluster \(k\); then \(n(\tau) =
+|K_{ab}(\tau)|\) in Eq. (4),</p>
+$$ \Delta_{ab} = \operatorname{median}_{k \in K_{ab}(\tau_{ab})}\ \operatorname{median} S_k, \tag{6a} $$
+<p>and \(n_{ab} = |K_{ab}(\tau_{ab})|\) in Eq. (6). An outbreak shared by two cohorts has one
+vote, so it cannot set their offset on its own, and the standard error reflects the number
+of independent clones rather than the number of pairs.</p>
+
 <h3 id="graph"><span class="n">2.5</span>Calibration on the comparison graph</h3>
 <p>The cohorts are the nodes of a graph whose edges carry the values \(\Delta_{ab}\) and
 weights \(w_{ab}\) (Figure 5). Since only contrasts are identified, one cohort, the anchor,
@@ -192,7 +206,9 @@ $$ A^{\top} W A\, \hat\delta = A^{\top} W \Delta \tag{8} $$
 \(W = \operatorname{diag}(w_{ab})\); \(A^{\top} W A\) is the weighted graph Laplacian with the
 anchor row and column removed. The system has a unique solution if and only if every
 cohort is connected to the anchor through the graph, possibly through other cohorts;
-phenocal stops with an error otherwise.</p>
+phenocal stops with an error otherwise, unless <code>--unlinked zero</code> is given:
+the cohorts outside the anchor's component then keep \(\delta_c = 0\), that is, they are not
+calibrated, and are marked <code>unlinked</code> in the output.</p>
 
 <figure>
 <div class="fig">@@FIG4@@</div>
@@ -390,6 +406,16 @@ including its clones shared with other cohorts, is indistinguishable from a prot
 offset and would be calibrated away. Biology specific to some strains does not have this
 problem, since it makes the log-ratios grow with genomic distance, which is what the
 adaptive bound detects.</p></div>
+<div class="remark"><p><span class="env-h">Remark (laboratories that already agree).</span>
+When the cohorts follow one protocol the true offsets are close to zero, smaller than the
+error of an edge estimated from a few pairs, and applying the estimated offsets adds noise.
+On the CRyPTIC <i>M. tuberculosis</i> data (thirteen laboratories reading the same plates), offsets
+fitted on half of the clonal clusters made the cross-laboratory twins of the other half
+agree less. Counting clusters (<code>--support-unit cluster</code>), keeping only true twins
+(<code>--max-tau</code>) and dropping edges without enough clusters
+(<code>--unsupported drop</code>, <code>--unlinked zero</code>) removed that loss while
+keeping the correction of the shifted laboratories of the <i>L. monocytogenes</i> data; the
+price is that small offsets supported by few clones are left uncorrected.</p></div>
 
 <h2 id="software"><span class="n">6</span>Software availability</h2>
 <p>phenocal is written in Rust without external dependencies and released under the MIT

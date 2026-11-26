@@ -3,9 +3,52 @@
 All notable changes to phenocal. Every release gives byte-identical results
 to the previous one on the same input unless stated otherwise.
 
-## [Unreleased]
+## [0.1.4] - 2026-11-26
+
+Robust edges for labs that are already harmonised, or whose twins come from a
+few outbreak clones. All new options are off by default: without them the
+outputs are byte-identical to 0.1.3 (checked in CI against `tests/golden`).
 
 ### Added
+- **`--support-unit cluster`** (with `--clusters`): each clonal cluster is one
+  unit of evidence. An edge needs `--min-support` distinct clusters, its value
+  is the median of the per-cluster medians and its standard error uses the
+  number of clusters. With the default `pair`, one outbreak clone shared by two
+  labs can supply most of the pairs of an edge and set the offset on its own;
+  with `cluster` it has one vote.
+- **`--max-tau <D>`**: largest genomic distance a twin pair may have. Pairs
+  farther apart never enter an edge (default: no cap).
+- **`--unsupported keep|drop`**: an edge that never reaches `--min-support`
+  within `--max-tau` is kept with all its pairs, down-weighted (`keep`,
+  default, as before) or left out (`drop`).
+- **`--unlinked fail|zero`**: a cohort with no edge path to the anchor stops
+  the run (`fail`, default, as before) or keeps offset 0 and is marked
+  `unlinked` in the `anchor` column of `offsets.tsv` (`zero`).
+- Suggested setting when the labs may already agree:
+  `--clusters C --support-unit cluster --min-support 3 --max-tau <twin bound>
+  --unsupported drop --unlinked zero`. Held-out twin benchmark (phenocal fitted
+  on 4 of 5 folds of clonal clusters, scored on the cross-lab twins of the fifth;
+  genpat-it/phenocal-ml-benchmark, `cryptic/`): on the CRyPTIC
+  *M. tuberculosis* data (14 drugs, 13 labs reading the same plates) the default
+  setting makes twins agree less in 13 of 14 drugs (+0.15 doublings of mean
+  absolute difference), the robust setting leaves agreement unchanged (−0.003,
+  p = 0.84); on the five *Listeria* BC labs both correct the shifted labs
+  (1.57 → 0.93 default, 0.91 robust). The price is power: with few independent
+  clones per lab pair many labs are left unlinked, and of a shift added on
+  purpose to two CRyPTIC labs the robust setting recovers 16% (default 98%).
+- `tests/robust.rs`: defaults reproduce the 0.1.3 outputs on the toy example;
+  one outbreak clone does not create an offset with `--support-unit cluster`;
+  a real offset carried by several clones is recovered; a lab with too few
+  clones is reported as unlinked (and fails by default); `--clusters` output is
+  reproducible.
+
+### Fixed
+- `--clusters`: the cluster-effective 95% intervals changed slightly from run
+  to run with the same seed, because the clusters were resampled in hash-map
+  order. They are now resampled in a fixed order, so the same seed gives the
+  same intervals. The point estimates were not affected.
+
+### Added (documentation)
 - Worked example on the GitHub Pages site (`worked.html`): a small data set
   with noise (`examples/worked_profiles.tsv`, `examples/worked_phenotypes.tsv`)
   taken from the allelic profiles to the labels, every number computed by hand.
