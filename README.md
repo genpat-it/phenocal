@@ -226,6 +226,10 @@ phenocal \
 | `--bootstrap <B>` | bootstrap draws for credible intervals | 10000 |
 | `--thresholds <list>` | comma-separated tolerance cutoffs (raw scale) | 0.75,1.0,1.25,1.5,2.0 |
 | `--clusters <FILE>` | TSV `sample<TAB>cluster` of clonal-cluster ids; enables the **cluster-effective** inference (cluster-weighted point + cluster-resampled 95% interval), the preferred summary when near-clonal pairs are nested in clusters | off (pair-level only) |
+| `--support-unit <pair\|cluster>` | unit of evidence for an edge; `cluster` (needs `--clusters`) gives one vote per clonal cluster: τ needs `--min-support` distinct clusters, the edge value is the median of per-cluster medians, the SE uses the number of clusters. See [Robust edges](#robust-edges-already-harmonised-labs-outbreak-clones) | pair |
+| `--max-tau <D>` | largest genomic distance a twin pair may have; farther pairs never enter an edge | no cap |
+| `--unsupported <keep\|drop>` | an edge that never reaches `--min-support` within `--max-tau`: keep it with all its pairs, down-weighted, or drop it | keep |
+| `--unlinked <fail\|zero>` | a cohort with no edge path to the anchor: stop with an error, or keep offset 0 and mark it `unlinked` | fail |
 | `--no-cutoff` | skip the (costly) data-driven cutoff estimation; still writes harmonised + labels | off |
 | `--pairs-format <auto\|long\|matrix>` | layout of `--pairs` (pair table or distance matrix) | auto (from the header) |
 | `--threads <N>` | threads for the distances computed from `--profiles` | all cores |
@@ -250,6 +254,45 @@ phenocal --phenotypes pheno.tsv --profiles results_alleles.tsv --clusters cluste
 per-cluster medians, one vote per clonal unit), `cluster_eff_lo95` and
 `cluster_eff_hi95` (bootstrap resampling clusters, not pairs). This is the
 preferred inferential summary when cluster ids are available.
+
+### Robust edges (already-harmonised labs, outbreak clones)
+
+By default every near-clonal pair is one piece of evidence, and an edge without
+enough pairs falls back to all its pairs. Two situations break this:
+
+- **Outbreak clones.** When one clone was sampled many times in two labs, it can
+  supply most of the pairs of their edge. If that clone happens to read one
+  dilution higher in one lab, the edge, and the offset, follow it.
+- **Labs that already agree.** When the labs share a protocol (same plates, same
+  reading), the true offsets are near zero and smaller than the noise of an edge
+  estimated from a handful of pairs. Applying such offsets makes the data worse.
+
+Four options handle both; all are off by default and the defaults reproduce the
+previous releases exactly:
+
+```
+phenocal --phenotypes pheno.tsv --pairs snp_pairs.tsv --already-log \
+         --clusters clusters.tsv --support-unit cluster --min-support 3 \
+         --max-tau 12 --unsupported drop --unlinked zero --out out
+```
+
+- `--support-unit cluster` counts clonal clusters, not pairs: an outbreak has one vote.
+- `--max-tau` keeps only true twins (choose the bound of your ruler and species, e.g. 12 SNPs
+  for *M. tuberculosis*, 20 cgMLST alleles for *L. monocytogenes*).
+- `--unsupported drop` removes an edge with fewer than `--min-support` clusters instead
+  of widening it to distant, no longer twin, isolates.
+- `--unlinked zero` keeps a cohort left without edges at offset 0 (it is not
+  calibrated) and writes `unlinked` in the `anchor` column of `offsets.tsv`; the
+  run says so on stderr. Without it such a run stops with an error.
+
+The cluster table is a `sample<TAB>cluster` TSV, e.g. single-linkage clusters at the
+same bound as `--max-tau`. Tested on held-out twins (fit on half of the clusters,
+score the agreement of cross-lab twins in the other half): on 11 CRyPTIC
+*M. tuberculosis* labs sharing one plate design the robust setting leaves agreement
+unchanged where the default worsens it, and on five *L. monocytogenes* labs with
+real offsets it corrects them as well as the default (see `CHANGELOG.md`). The cost
+is power: with few independent clones per lab pair, edges are dropped and small
+offsets are left uncorrected.
 
 ## Outputs
 
@@ -302,10 +345,11 @@ flowchart TD
    profiles, or read from `--pairs`) and signed log-phenotype difference
    `s = y_a − y_b` (oriented `a` over `b`). Every pair is used once: profiles
    and distance matrices guarantee it, a pair table should not repeat a pair.
-2. Adaptive `τ`: smallest distance bound with ≥ `min-support` pairs **and**
+2. Adaptive `τ`: smallest distance bound (at most `--max-tau`) with ≥ `min-support` pairs (or clusters, with `--support-unit cluster`) **and**
    median drift ≤ `max-drift · σ̄_ab` from the `d_min` value, where `σ̄_ab` is the
    edge resolution set by `--drift-scale` (`= log10(2)` for two-fold grids).
-3. Edge value `Δ = median(s | d ≤ τ)`; `SE = sqrt((σ_a² + σ_b² + λ·τ)/n)` with
+   Without an admissible bound the edge keeps all its pairs (`--unsupported keep`) or is dropped (`drop`).
+3. Edge value `Δ = median(s | d ≤ τ)` (with `--support-unit cluster`: median of the per-cluster medians, `n` = clusters); `SE = sqrt((σ_a² + σ_b² + λ·τ)/n)` with
    per-cohort resolution `σ_c` (`--sigma`); `w = 1/SE²`. (Reduces to
    `log10(2)·sqrt((1+τ)/n)` when all cohorts are two-fold.)
 4. Weighted least squares on the comparison graph for cohort offsets, anchor δ=0.
@@ -317,7 +361,8 @@ flowchart TD
 
 The offsets are identifiable up to an additive constant (gauge); the anchor is a
 coordinate convention and does not affect harmonised labels (Lemma 1 of the
-paper). A connected graph is required.
+paper). A connected graph is required; with `--unlinked zero` cohorts outside the
+anchor's component keep offset 0 and are reported as `unlinked`.
 
 ## Validation
 
